@@ -1,0 +1,213 @@
+/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-bg:         #FAF8F4;
+  --c-surface:    #FFFFFF;
+  --c-border:     #E8E4DC;
+  --c-text:       #1A1916;
+  --c-muted:      #6B6860;
+  --c-accent:     #2D5A27;
+  --c-accent-lt:  #EAF3DE;
+  --c-red:        #A32D2D;
+  --c-red-lt:     #FCEBEB;
+  --c-blue:       #185FA5;
+  --c-blue-lt:    #E6F1FB;
+  --c-amber:      #BA7517;
+  --c-amber-lt:   #FAEEDA;
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body:    var(--font-dm-sans), system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family:      var(--font-body);
+  background-color: var(--c-bg);
+  color:            var(--c-text);
+  font-size:        15px;
+  line-height:      1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.main-content {
+  max-width:      430px;
+  margin:         0 auto;
+  padding-bottom: 80px; /* space for bottom nav */
+}
+
+/* ── Typography ── */
+.display { font-family: var(--font-display); font-weight: 300; }
+
+/* ── Cards ── */
+.card {
+  background:    var(--c-surface);
+  border:        1px solid var(--c-border);
+  border-radius: 12px;
+  padding:       14px 16px;
+  margin-bottom: 12px;
+}
+
+/* ── Badges ── */
+.badge {
+  display:       inline-flex;
+  align-items:   center;
+  font-size:     11px;
+  font-weight:   500;
+  padding:       3px 9px;
+  border-radius: 20px;
+}
+.badge-green  { background: var(--c-accent-lt); color: var(--c-accent); }
+.badge-red    { background: var(--c-red-lt);    color: var(--c-red);    }
+.badge-amber  { background: var(--c-amber-lt);  color: var(--c-amber);  }
+.badge-blue   { background: var(--c-blue-lt);   color: var(--c-blue);   }
+
+/* ── Buttons ── */
+.btn {
+  display:       block;
+  width:         100%;
+  padding:       12px;
+  border-radius: 10px;
+  font-size:     15px;
+  font-weight:   500;
+  cursor:        pointer;
+  text-align:    center;
+  border:        none;
+  font-family:   var(--font-body);
+  transition:    all .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary   { background: var(--c-accent); color: #fff; }
+.btn-secondary { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); }
+.btn-danger    { background: var(--c-red); color: #fff; }
+.btn:active    { opacity: 0.85; transform: scale(0.98); }
+
+/* ── Form inputs ── */
+.field-label {
+  display:       block;
+  font-size:     11px;
+  color:         var(--c-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.field-input {
+  width:         100%;
+  border:        1px solid var(--c-border);
+  border-radius: 8px;
+  padding:       9px 12px;
+  font-size:     15px;
+  font-family:   var(--font-body);
+  background:    var(--c-bg);
+  color:         var(--c-text);
+  outline:       none;
+  -webkit-appearance: none;
+}
+.field-input:focus { border-color: var(--c-accent); }
+
+/* ── Inventory bar ── */
+.inv-bar { flex: 1; height: 6px; background: var(--c-border); border-radius: 3px; overflow: hidden; }
+.inv-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.inv-ok   { background: var(--c-accent); }
+.inv-low  { background: var(--c-amber);  }
+.inv-crit { background: var(--c-red);    }
+
+/* ── Calendar ── */
+.cal-grid {
+  display:               grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:                   4px;
+  margin-bottom:         4px;
+}
+.cal-day {
+  border-radius: 8px;
+  padding:       7px 2px;
+  text-align:    center;
+  font-size:     13px;
+  cursor:        pointer;
+  position:      relative;
+  min-height:    38px;
+  display:       flex;
+  flex-direction: column;
+  align-items:   center;
+  justify-content: center;
+  gap:           2px;
+}
+.cal-booked   { background: var(--c-accent-lt); color: var(--c-accent); font-weight: 500; }
+.cal-turnover { background: var(--c-amber-lt);  color: var(--c-amber);  font-weight: 500; }
+.cal-today    { border: 2px solid var(--c-accent); }
+
+/* ── Bottom navigation ── */
+.bottom-nav {
+  position:   fixed;
+  bottom:     0;
+  left:       50%;
+  transform:  translateX(-50%);
+  width:      100%;
+  max-width:  430px;
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
+  display:    flex;
+  z-index:    100;
+  padding:    8px 0 env(safe-area-inset-bottom, 12px);
+}
+.nav-btn {
+  flex:           1;
+  background:     none;
+  border:         none;
+  cursor:         pointer;
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            3px;
+  font-size:      10px;
+  color:          var(--c-muted);
+  font-family:    var(--font-body);
+  padding:        4px 0;
+  transition:     color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-btn.active { color: var(--c-accent); }
+
+/* ── Section label ── */
+.section-lbl {
+  font-size:      11px;
+  color:          var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom:  8px;
+  margin-top:     4px;
+}
+
+/* ── Modal ── */
+.modal-overlay {
+  position:        fixed;
+  inset:           0;
+  background:      rgba(0,0,0,.45);
+  z-index:         200;
+  display:         flex;
+  align-items:     flex-end;
+  justify-content: center;
+}
+.modal-sheet {
+  background:    var(--c-surface);
+  border-radius: 16px 16px 0 0;
+  padding:       20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  width:         100%;
+  max-width:     430px;
+  max-height:    90vh;
+  overflow-y:    auto;
+}
+.modal-handle {
+  width:         40px;
+  height:        4px;
+  background:    var(--c-border);
+  border-radius: 2px;
+  margin:        0 auto 16px;
+}
+
+/* ── Stat card ── */
+.stat-card { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; }
+.stat-val  { font-family: var(--font-display); font-size: 24px; font-weight: 300; }
