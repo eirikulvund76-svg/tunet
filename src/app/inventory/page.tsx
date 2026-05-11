@@ -42,7 +42,7 @@ export default function InventoryPage() {
   }
 
   const lowItems   = items.filter(i => stockLevel(i) !== 'ok')
-  const categories = [...new Set(items.map(i => i.category))]
+  const categories = Array.from(new Set(items.map(i => i.category)))
 
   if (loading) return <div className="p-4"><div className="card animate-pulse h-60" /></div>
 
