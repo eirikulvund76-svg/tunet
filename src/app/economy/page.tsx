@@ -65,13 +65,28 @@ export default function EconomyPage() {
 
   return (
     <div className="p-4">
-      <div className="flex justify-between items-center mb-4 pt-2">
-        <div className="flex items-center gap-3">
-          <button onClick={prevMonth} className="text-[var(--c-muted)] text-lg">‹</button>
-          <h1 className="display text-2xl capitalize">{MONTHS[month-1]} {year}</h1>
-          <button onClick={nextMonth} className="text-[var(--c-muted)] text-lg">›</button>
+      <div className="mb-4 pt-2">
+        <div className="flex justify-center items-center gap-4 mb-3">
+          <button onClick={prevMonth}
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--c-border)] text-[var(--c-muted)]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="15,18 9,12 15,6"/>
+            </svg>
+          </button>
+          <h1 className="display text-2xl capitalize w-40 text-center">
+            {['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'][month-1]} {year}
+          </h1>
+          <button onClick={nextMonth}
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--c-border)] text-[var(--c-muted)]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9,18 15,12 9,6"/>
+            </svg>
+          </button>
         </div>
-        <button onClick={() => setShowAdd(true)} className="text-sm text-[var(--c-accent)] font-medium">+ Legg til</button>
+        <button onClick={() => setShowAdd(true)}
+          className="w-full text-center text-sm text-[var(--c-accent)] font-medium py-1">
+          + Legg til post
+        </button>
       </div>
 
       {/* Summary stats */}
