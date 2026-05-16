@@ -1,8 +1,8 @@
-// src/app/layout.tsx
 import type { Metadata, Viewport } from 'next'
 import { Fraunces, DM_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/ui/BottomNav'
+import AuthProvider from '@/components/ui/AuthProvider'
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -18,13 +18,13 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Solbakken · Gardshus',
+  title: 'Tunet · Gardshus',
   description: 'Driftsystem for Airbnb-gardshus',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Gardshus',
+    title: 'Tunet',
   },
 }
 
@@ -39,8 +39,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="nb" className={`${fraunces.variable} ${dmSans.variable}`}>
       <body>
-        <main className="main-content">{children}</main>
-        <BottomNav />
+        <AuthProvider>
+          <main className="main-content">{children}</main>
+          <BottomNav />
+        </AuthProvider>
       </body>
     </html>
   )

@@ -1,7 +1,7 @@
 'use client'
-// src/components/ui/BottomNav.tsx
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 const NAV = [
   {
@@ -28,6 +28,15 @@ const NAV = [
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const router   = useRouter()
+
+  if (pathname === '/login') return null
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }
+
   return (
     <nav className="bottom-nav">
       {NAV.map(({ href, label, icon }) => {
@@ -40,6 +49,14 @@ export default function BottomNav() {
           </Link>
         )
       })}
+      <button className="nav-btn" onClick={handleLogout}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+          <polyline points="16,17 21,12 16,7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        <span>Logg ut</span>
+      </button>
     </nav>
   )
 }
