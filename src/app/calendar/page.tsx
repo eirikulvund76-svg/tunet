@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { getBookingsForMonth, createBooking, createBookingEconomyEntries } from '@/lib/supabase'
+import { supabase, getBookingsForMonth, createBooking, createBookingEconomyEntries } from '@/lib/supabase'
 import type { Booking } from '@/types/database'
 
 const MONTHS = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember']
@@ -72,11 +72,23 @@ export default function CalendarPage() {
     } finally { setSaving(false) }
   }
 
+  async function handleDelete(booking: Booking) {
+    if (!confirm(`Slett booking for ${booking.guest_name}?`)) return
+    // Slett tilhørende økonomi-poster
+    await supabase.from('economy_entries').delete().eq('booking_id', booking.id)
+    await supabase.from('bookings').delete().eq('id', booking.id)
+    load()
+  }
+
   function f(k: string, v: string | number) { setForm(p => ({ ...p, [k]: v })) }
+
+  const nights = form.check_in && form.check_out
+    ? Math.ceil((new Date(form.check_out).getTime()-new Date(form.check_in).getTime())/86400000)
+    : 0
 
   return (
     <div className="p-4">
-      {/* Månadsveljar — sentrert på same linje */}
+      {/* Månadsveljar */}
       <div className="flex justify-center items-center gap-4 mb-4 pt-2">
         <button onClick={prevMonth}
           className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--c-border)] text-[var(--c-muted)]">
@@ -115,40 +127,20 @@ export default function CalendarPage() {
           return (
             <div key={day}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '44px',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                gap: '3px',
-                padding: '6px 2px',
-                background: isBooked
-                  ? 'var(--c-accent-lt)'
-                  : isTurnover
-                    ? 'var(--c-amber-lt)'
-                    : isToday
-                      ? 'transparent'
-                      : 'rgba(0,0,0,0.03)',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                minHeight: '44px', borderRadius: '10px',
+                cursor: 'pointer', gap: '3px', padding: '6px 2px',
+                background: isBooked ? 'var(--c-accent-lt)' : isTurnover ? 'var(--c-amber-lt)' : 'rgba(0,0,0,0.03)',
                 border: isToday ? '2px solid var(--c-accent)' : '1px solid transparent',
-                color: isBooked
-                  ? 'var(--c-accent)'
-                  : isTurnover
-                    ? 'var(--c-amber)'
-                    : 'var(--c-text)',
+                color: isBooked ? 'var(--c-accent)' : isTurnover ? 'var(--c-amber)' : 'var(--c-text)',
                 fontWeight: isBooked || isTurnover ? '500' : '400',
                 fontSize: '13px',
               }}
             >
               {day}
               {(isBooked || isTurnover) && (
-                <div style={{
-                  width: '5px', height: '5px',
-                  borderRadius: '50%',
-                  background: 'currentColor',
-                  opacity: 0.6
-                }} />
+                <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'currentColor', opacity:0.6 }} />
               )}
             </div>
           )
@@ -163,30 +155,37 @@ export default function CalendarPage() {
         <div className="card">
           {bookings.map((b, i) => (
             <div key={b.id}
-              className={`flex justify-between items-center py-2.5
-                ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
-              <div>
-                <div className="font-medium text-sm">{b.guest_name}</div>
-                <div className="text-xs text-[var(--c-muted)]">
-                  {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                  {' – '}
-                  {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                  {' · '}{nightsCount(b)} netter · {b.num_guests} gjester
+              className={`py-2.5 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-medium text-sm">{b.guest_name}</div>
+                  <div className="text-xs text-[var(--c-muted)]">
+                    {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
+                    {' – '}
+                    {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
+                    {' · '}{nightsCount(b)} netter · {b.num_guests} gjester
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <div className="font-medium text-sm">{totalRevenue(b).toLocaleString('nb-NO')} kr</div>
-                <span className={`badge ${b.status==='confirmed'?'badge-green':b.status==='paid'?'badge-blue':'badge-amber'}`}>
-                  {b.status==='confirmed'?'Bekrefta':b.status==='paid'?'Betalt':'Venter'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="font-medium text-sm">{totalRevenue(b).toLocaleString('nb-NO')} kr</div>
+                    <span className={`badge ${b.status==='confirmed'?'badge-green':b.status==='paid'?'badge-blue':'badge-amber'}`}>
+                      {b.status==='confirmed'?'Bekrefta':b.status==='paid'?'Betalt':'Venter'}
+                    </span>
+                  </div>
+                  <button onClick={() => handleDelete(b)}
+                    className="text-[var(--c-muted)] text-xl leading-none ml-1"
+                    style={{ color: 'var(--c-muted)' }}>×</button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Ny booking</button>
+      <button className="btn btn-primary mt-2" onClick={() => setShowModal(true)}>+ Ny booking</button>
 
+      {/* Ny booking modal */}
       {showModal && (
         <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setShowModal(false)}>
           <div className="modal-sheet">
@@ -232,14 +231,11 @@ export default function CalendarPage() {
                 onChange={e=>f('notes',e.target.value)}
                 placeholder="Allergiar, spesielle ønske..." />
             </label>
-            {form.check_in && form.check_out && (
+            {nights > 0 && (
               <div className="card mb-3" style={{ background: 'var(--c-accent-lt)' }}>
                 <div className="text-xs text-[var(--c-accent)]">
-                  {Math.ceil((new Date(form.check_out).getTime()-new Date(form.check_in).getTime())/86400000)} netter ×{' '}
-                  {form.price_per_night} kr + {form.cleaning_fee} kr vask ={' '}
-                  <strong>
-                    {(Math.ceil((new Date(form.check_out).getTime()-new Date(form.check_in).getTime())/86400000)*form.price_per_night+form.cleaning_fee).toLocaleString('nb-NO')} kr
-                  </strong>
+                  {nights} netter × {form.price_per_night} kr + {form.cleaning_fee} kr vask ={' '}
+                  <strong>{(nights * form.price_per_night + form.cleaning_fee).toLocaleString('nb-NO')} kr</strong>
                 </div>
               </div>
             )}

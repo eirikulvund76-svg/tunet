@@ -1,7 +1,6 @@
 'use client'
-// src/app/economy/page.tsx
 import { useState, useEffect } from 'react'
-import { getEconomyEntries, getMonthlySummary, getBookingPnl, createEconomyEntry } from '@/lib/supabase'
+import { supabase, getEconomyEntries, getMonthlySummary, getBookingPnl, createEconomyEntry } from '@/lib/supabase'
 import type { EconomyEntry, MonthlyEconomy, BookingPnl } from '@/types/database'
 
 const INCOME_CATS  = ['booking_revenue','cleaning_fee','other_income']
@@ -25,8 +24,6 @@ export default function EconomyPage() {
   const [showAdd, setShowAdd]   = useState(false)
   const [saving,  setSaving]    = useState(false)
   const [form, setForm] = useState({ type:'income' as 'income'|'expense', category:'booking_revenue', amount:'', description:'', date:'' })
-
-  const MONTHS = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des']
 
   async function load() {
     const [e, m, p] = await Promise.all([
@@ -60,6 +57,13 @@ export default function EconomyPage() {
     setSaving(false); setShowAdd(false); load()
   }
 
+  async function handleDelete(entry: EconomyEntry) {
+    const label = CAT_LABELS[entry.category] ?? entry.category
+    if (!confirm(`Slett "${label}" på ${fmt(entry.amount)} kr?`)) return
+    await supabase.from('economy_entries').delete().eq('id', entry.id)
+    load()
+  }
+
   const incomeEntries  = entries.filter(e => e.type === 'income')
   const expenseEntries = entries.filter(e => e.type === 'expense')
 
@@ -89,7 +93,6 @@ export default function EconomyPage() {
         </button>
       </div>
 
-      {/* Summary stats */}
       <div className="grid grid-cols-2 gap-2.5 mb-2">
         <div className="stat-card">
           <div className="text-xs text-[var(--c-muted)] mb-1">Inntekt</div>
@@ -109,7 +112,6 @@ export default function EconomyPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
         {(['income','expenses','bookings','trend'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
@@ -121,51 +123,57 @@ export default function EconomyPage() {
         ))}
       </div>
 
-      {/* Income panel */}
+      {/* Inntekter */}
       {tab === 'income' && (
-        <>
-          {incomeEntries.length === 0
-            ? <div className="card text-sm text-[var(--c-muted)]">Ingen inntekter denne månaden</div>
-            : <div className="card">
-                {incomeEntries.map((e, i) => (
-                  <div key={e.id} className={`py-2.5 ${i<incomeEntries.length-1?'border-b border-[var(--c-border)]':''}`}
-                    style={{ borderLeft:'3px solid var(--c-accent)', paddingLeft:'10px' }}>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-sm">{CAT_LABELS[e.category] ?? e.category}</span>
+        incomeEntries.length === 0
+          ? <div className="card text-sm text-[var(--c-muted)]">Ingen inntekter denne månaden</div>
+          : <div className="card">
+              {incomeEntries.map((e, i) => (
+                <div key={e.id} className={`py-2.5 ${i<incomeEntries.length-1?'border-b border-[var(--c-border)]':''}`}
+                  style={{ borderLeft:'3px solid var(--c-accent)', paddingLeft:'10px' }}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-sm">{CAT_LABELS[e.category] ?? e.category}</div>
+                      {e.description && <div className="text-xs text-[var(--c-muted)]">{e.description}</div>}
+                      <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <span className="font-medium text-[var(--c-accent)] text-sm">{fmt(e.amount)} kr</span>
+                      <button onClick={() => handleDelete(e)}
+                        className="text-[var(--c-muted)] hover:text-[var(--c-red)] text-lg leading-none">×</button>
                     </div>
-                    {e.description && <div className="text-xs text-[var(--c-muted)] mt-0.5">{e.description}</div>}
-                    <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
                   </div>
-                ))}
-              </div>
-          }
-        </>
+                </div>
+              ))}
+            </div>
       )}
 
-      {/* Expenses panel */}
+      {/* Utgifter */}
       {tab === 'expenses' && (
-        <>
-          {expenseEntries.length === 0
-            ? <div className="card text-sm text-[var(--c-muted)]">Ingen utgifter denne månaden</div>
-            : <div className="card">
-                {expenseEntries.map((e, i) => (
-                  <div key={e.id} className={`py-2.5 ${i<expenseEntries.length-1?'border-b border-[var(--c-border)]':''}`}
-                    style={{ borderLeft:'3px solid var(--c-red)', paddingLeft:'10px' }}>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-sm">{CAT_LABELS[e.category] ?? e.category}</span>
-                      <span className="font-medium text-[var(--c-red)] text-sm">{fmt(e.amount)} kr</span>
+        expenseEntries.length === 0
+          ? <div className="card text-sm text-[var(--c-muted)]">Ingen utgifter denne månaden</div>
+          : <div className="card">
+              {expenseEntries.map((e, i) => (
+                <div key={e.id} className={`py-2.5 ${i<expenseEntries.length-1?'border-b border-[var(--c-border)]':''}`}
+                  style={{ borderLeft:'3px solid var(--c-red)', paddingLeft:'10px' }}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-sm">{CAT_LABELS[e.category] ?? e.category}</div>
+                      {e.description && <div className="text-xs text-[var(--c-muted)]">{e.description}</div>}
+                      <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
                     </div>
-                    {e.description && <div className="text-xs text-[var(--c-muted)] mt-0.5">{e.description}</div>}
-                    <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-[var(--c-red)] text-sm">{fmt(e.amount)} kr</span>
+                      <button onClick={() => handleDelete(e)}
+                        className="text-[var(--c-muted)] hover:text-[var(--c-red)] text-lg leading-none">×</button>
+                    </div>
                   </div>
-                ))}
-              </div>
-          }
-        </>
+                </div>
+              ))}
+            </div>
       )}
 
-      {/* Per booking P&L */}
+      {/* Per booking */}
       {tab === 'bookings' && (
         pnl.length === 0
           ? <div className="card text-sm text-[var(--c-muted)]">Ingen booking-data enno</div>
@@ -179,9 +187,7 @@ export default function EconomyPage() {
                       {' – '}
                       {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
                     </div>
-                    <div className="text-xs text-[var(--c-muted)]">
-                      {fmt(b.income)} inn · {fmt(b.expenses)} ut
-                    </div>
+                    <div className="text-xs text-[var(--c-muted)]">{fmt(b.income)} inn · {fmt(b.expenses)} ut</div>
                   </div>
                   <div className="text-right">
                     <div className={`display text-xl ${b.net>=0?'text-[var(--c-accent)]':'text-[var(--c-red)]'}`}>
@@ -194,37 +200,39 @@ export default function EconomyPage() {
             </div>
       )}
 
-      {/* Monthly trend */}
+      {/* Trend */}
       {tab === 'trend' && (
         <div className="card">
-          {monthly.map((m, i) => {
-            const d = new Date(m.month)
-            const maxNet = Math.max(...monthly.map(x => Math.abs(x.net)), 1)
-            return (
-              <div key={i} className={`py-2.5 ${i<monthly.length-1?'border-b border-[var(--c-border)]':''}`}>
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-sm capitalize">{d.toLocaleString('nb-NO',{month:'long',year:'numeric'})}</span>
-                  <span className={`font-medium text-sm ${m.net>=0?'text-[var(--c-accent)]':'text-[var(--c-red)]'}`}>
-                    {m.net>=0?'+':''}{fmt(m.net)} kr
-                  </span>
+          {monthly.length === 0
+            ? <div className="text-sm text-[var(--c-muted)]">Ingen data enno</div>
+            : monthly.map((m, i) => {
+              const d = new Date(m.month)
+              const maxNet = Math.max(...monthly.map(x => Math.abs(x.net)), 1)
+              return (
+                <div key={i} className={`py-2.5 ${i<monthly.length-1?'border-b border-[var(--c-border)]':''}`}>
+                  <div className="flex justify-between mb-1.5">
+                    <span className="text-sm capitalize">{d.toLocaleString('nb-NO',{month:'long',year:'numeric'})}</span>
+                    <span className={`font-medium text-sm ${m.net>=0?'text-[var(--c-accent)]':'text-[var(--c-red)]'}`}>
+                      {m.net>=0?'+':''}{fmt(m.net)} kr
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-[var(--c-border)] rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${m.net>=0?'bg-[var(--c-accent)]':'bg-[var(--c-red)]'}`}
+                      style={{ width: `${Math.round(Math.abs(m.net)/maxNet*100)}%` }} />
+                  </div>
                 </div>
-                <div className="h-1.5 bg-[var(--c-border)] rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${m.net>=0?'bg-[var(--c-accent)]':'bg-[var(--c-red)]'}`}
-                    style={{ width: `${Math.round(Math.abs(m.net)/maxNet*100)}%` }} />
-                </div>
-              </div>
-            )
-          })}
+              )
+            })
+          }
         </div>
       )}
 
-      {/* Add modal */}
+      {/* Legg til modal */}
       {showAdd && (
         <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setShowAdd(false)}>
           <div className="modal-sheet">
             <div className="modal-handle" />
             <h2 className="display text-xl mb-4">Legg til post</h2>
-
             <div className="flex gap-2 mb-3">
               {(['income','expense'] as const).map(t => (
                 <button key={t} onClick={() => setForm(p=>({...p,type:t,category:t==='income'?'booking_revenue':'electricity'}))}
@@ -233,7 +241,6 @@ export default function EconomyPage() {
                 </button>
               ))}
             </div>
-
             <label className="block mb-3">
               <span className="field-label">Kategori</span>
               <select className="field-input" value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}>
@@ -244,17 +251,19 @@ export default function EconomyPage() {
             </label>
             <label className="block mb-3">
               <span className="field-label">Beløp (kr)</span>
-              <input type="number" className="field-input" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="0" />
+              <input type="number" className="field-input" value={form.amount}
+                onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="0" />
             </label>
             <label className="block mb-3">
               <span className="field-label">Dato</span>
-              <input type="date" className="field-input" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} />
+              <input type="date" className="field-input" value={form.date}
+                onChange={e=>setForm(p=>({...p,date:e.target.value}))} />
             </label>
             <label className="block mb-4">
               <span className="field-label">Beskriving (valfritt)</span>
-              <input type="text" className="field-input" value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Eks: Straumrekning mai" />
+              <input type="text" className="field-input" value={form.description}
+                onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Eks: Straumrekning mai" />
             </label>
-
             <button className="btn btn-primary mb-2" onClick={handleAdd} disabled={saving}>
               {saving?'Lagrar...':'Lagre post'}
             </button>
