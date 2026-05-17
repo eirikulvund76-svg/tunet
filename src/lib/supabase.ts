@@ -92,6 +92,8 @@ export async function getTurnoverTasks(): Promise<TurnoverTask[]> {
 
 export async function createTurnover(bookingId: string | null, date: string): Promise<Turnover> {
   const userId = await uid()
+
+  // 1. Opprett turnover-rada
   const { data: turnover, error: te } = await supabase
     .from('turnovers')
     .insert({ booking_id: bookingId, scheduled_date: date, user_id: userId })
@@ -99,12 +101,22 @@ export async function createTurnover(bookingId: string | null, date: string): Pr
     .single()
   if (te) throw te
 
+  // 2. Hent oppgåver
   const tasks = await getTurnoverTasks()
+
+  if (tasks.length === 0) {
+    console.warn('Ingen oppgåver funne for brukar:', userId)
+    return turnover
+  }
+
+  // 3. Lag task-log-rader MED user_id (krev at RLS-policy tillèt insert)
   const taskLogs = tasks.map(t => ({
     turnover_id: turnover.id,
     task_id: t.id,
-    completed: false
+    completed: false,
+    user_id: userId   // ← VIKTIG: var mangla i original
   }))
+
   const { error: le } = await supabase.from('turnover_task_log').insert(taskLogs)
   if (le) throw le
 
