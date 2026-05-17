@@ -3,6 +3,7 @@ import { Fraunces, DM_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/ui/BottomNav'
 import AuthProvider from '@/components/ui/AuthProvider'
+import { ProfileProvider } from '@/components/ui/ProfileProvider'
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -18,13 +19,12 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Tunet · Gardshus',
+  title: 'Gardshus',
   description: 'Driftsystem for Airbnb-gardshus',
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Tunet',
+    title: 'Gardshus',
   },
 }
 
@@ -40,8 +40,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="nb" className={`${fraunces.variable} ${dmSans.variable}`}>
       <body>
         <AuthProvider>
-          <main className="main-content">{children}</main>
-          <BottomNav />
+          <ProfileProvider>
+            <main className="main-content">{children}</main>
+            <BottomNav />
+          </ProfileProvider>
         </AuthProvider>
       </body>
     </html>
