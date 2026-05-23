@@ -41,11 +41,6 @@ const DEFAULT_INVENTORY = [
 ]
 
 async function setupNewUser(userId: string) {
-  // 1. Lag profil
-  await supabase
-    .from('user_profiles')
-    .upsert({ id: userId }, { onConflict: 'id' })
-
   // 2. Sjekk om brukar allereie har oppgåver
   const { data: existingTasks } = await supabase
     .from('turnover_tasks')
