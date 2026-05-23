@@ -131,8 +131,13 @@ export default function TurnoverPage() {
     const ok = window.confirm('Er du sikker? Dette slettar alle tidsdata og estimata startar på nytt.')
     if (!ok) return
     await supabase.from('task_time_history').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    setTasks(prev => prev.map(t => ({ ...t, avgSeconds: undefined })))
-    alert('Alle tider er nullstilte!')
+    // Nullstill localStorage så "Start turnover-sesjon"-knappen kjem tilbake
+    const today = new Date().toISOString().split('T')[0]
+    localStorage.removeItem('turnover_id_' + today)
+    setTurnover(null)
+    setLastCheckTime(null)
+    setTasks(prev => prev.map(t => ({ ...t, done: false, avgSeconds: undefined, logId: undefined })))
+    alert('Alle tider er nullstilte! Du kan no starta ein ny sesjon.')
   }
 
   async function handleDamageSubmit() {
