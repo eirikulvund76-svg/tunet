@@ -124,7 +124,10 @@ export default function TurnoverPage() {
   async function handleComplete() {
     if (!turnover) return
     await completeTurnover(turnover.id)
+    const today = new Date().toISOString().split('T')[0]
+    localStorage.removeItem('turnover_id_' + today)
     alert('Turnover fullført! 🎉')
+    window.location.reload()
   }
 
   async function resetAllTimes() {
