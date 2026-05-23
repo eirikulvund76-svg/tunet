@@ -93,12 +93,12 @@ export default function LoginPage() {
         if (error) throw error
         if (data.user) {
           await setupNewUser(data.user.id)
-          // Logg inn automatisk og send til innstillingar
-          const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
-          if (!loginError) {
-            router.push('/settings')
-            return
-          }
+        }
+        // Logg inn automatisk
+        const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
+        if (!loginError) {
+          router.push('/settings')
+          return
         }
         alert('Konto oppretta! Du kan no logge inn.')
         setIsSignUp(false)
