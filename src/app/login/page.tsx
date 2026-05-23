@@ -99,11 +99,20 @@ export default function LoginPage() {
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        // Sørgj for at brukar har profil og oppgåver
         if (data.user) {
           await setupNewUser(data.user.id)
+          // Sjekk om ny brukar (tomt husnamn) → send til innstillingar
+          const { data: prof } = await supabase
+            .from('user_profiles')
+            .select('house_name')
+            .eq('id', data.user.id)
+            .single()
+          if (!prof || !prof.house_name) {
+            router.push('/settings')
+          } else {
+            router.push('/dashboard')
+          }
         }
-        router.push('/dashboard')
       }
     } catch (e: any) {
       setError(e.message === 'Invalid login credentials'
