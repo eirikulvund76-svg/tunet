@@ -3,6 +3,44 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+// Standard oppgåver som alle nye brukarar får
+const DEFAULT_TASKS = [
+  { name: 'Bytte sengetøy', sort_order: 1 },
+  { name: 'Vaske bad', sort_order: 2 },
+  { name: 'Vaske kjøkken', sort_order: 3 },
+  { name: 'Støvsuge alle rom', sort_order: 4 },
+  { name: 'Vaske golv', sort_order: 5 },
+  { name: 'Fylle forbruksvarer', sort_order: 6 },
+  { name: 'Kontrollere TV og lys', sort_order: 7 },
+  { name: 'Byte kodeboks-kode', sort_order: 8 },
+  { name: 'Ta dokumentasjonsbilete', sort_order: 9 },
+]
+
+async function setupNewUser(userId: string) {
+  // 1. Lag profil
+  await supabase
+    .from('user_profiles')
+    .upsert({ id: userId }, { onConflict: 'id' })
+
+  // 2. Sjekk om brukar allereie har oppgåver
+  const { data: existing } = await supabase
+    .from('turnover_tasks')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+
+  if (!existing || existing.length === 0) {
+    // Lag standardoppgåver
+    await supabase.from('turnover_tasks').insert(
+      DEFAULT_TASKS.map(t => ({
+        ...t,
+        user_id: userId,
+        is_active: true,
+      }))
+    )
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail]       = useState('')
@@ -16,13 +54,20 @@ export default function LoginPage() {
     setError('')
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password })
+        const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
+        if (data.user) {
+          await setupNewUser(data.user.id)
+        }
         alert('Konto oppretta! Du kan no logge inn.')
         setIsSignUp(false)
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
+        // Sørgj for at brukar har profil og oppgåver
+        if (data.user) {
+          await setupNewUser(data.user.id)
+        }
         router.push('/dashboard')
       }
     } catch (e: any) {
