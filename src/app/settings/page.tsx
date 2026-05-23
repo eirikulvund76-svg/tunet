@@ -51,7 +51,6 @@ export default function SettingsPage() {
 
       if (prof) {
         setProfile(prof)
-        // Ny brukar viss house_name er tomt
         if (!prof.house_name) setIsNewUser(true)
       } else {
         setIsNewUser(true)
@@ -73,12 +72,7 @@ export default function SettingsPage() {
     setSaving(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-
-    await supabase.from('user_profiles').upsert({
-      id: session.user.id,
-      ...profile
-    })
-
+    await supabase.from('user_profiles').upsert({ id: session.user.id, ...profile })
     applyTheme(profile.theme_color)
     setIsNewUser(false)
     setSaving(false)
@@ -107,11 +101,10 @@ export default function SettingsPage() {
     if (!newTask.name) return
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-    const maxOrder = tasks.length + 1
     const { data } = await supabase.from('turnover_tasks').insert({
       name: newTask.name,
       est_minutes: newTask.est_minutes,
-      sort_order: maxOrder,
+      sort_order: tasks.length + 1,
       is_active: true,
       user_id: session.user.id
     }).select().single()
@@ -124,7 +117,6 @@ export default function SettingsPage() {
 
   if (loading) return <div className="p-4"><div className="card animate-pulse h-60" /></div>
 
-  // Velkomstskjema for nye brukarar
   if (isNewUser) return (
     <div className="p-4 pb-24">
       <div className="pt-2 mb-6">
@@ -170,7 +162,6 @@ export default function SettingsPage() {
     </div>
   )
 
-  // Vanleg innstillingsside
   return (
     <div className="p-4 pb-24">
       <div className="flex justify-between items-center mb-4 pt-2">
@@ -246,9 +237,9 @@ export default function SettingsPage() {
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 gap: '6px', padding: '10px 14px', borderRadius: '10px',
                 border: profile.theme_color === theme.id
-                  ? 2px solid ${theme.color}
+                  ? `2px solid ${theme.color}`
                   : '2px solid var(--c-border)',
-                background: profile.theme_color === theme.id ? ${theme.color}15 : 'transparent',
+                background: profile.theme_color === theme.id ? `${theme.color}15` : 'transparent',
                 cursor: 'pointer'
               }}>
               <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: theme.color }} />
@@ -295,13 +286,13 @@ export default function SettingsPage() {
             <label className="block mb-3">
               <span className="field-label">Namn på oppgåva</span>
               <input type="text" className="field-input" value={newTask.name}
-                onChange={e => setNewTask(p => ({ ...p, name: e.target.value }))}
+                onChange={e => setNewTask(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="T.d. Lufte soverom" />
             </label>
             <label className="block mb-4">
               <span className="field-label">Estimert tid (minutt)</span>
               <input type="number" className="field-input" min={1} value={newTask.est_minutes}
-                onChange={e => setNewTask(p => ({ ...p, est_minutes: +e.target.value }))} />
+                onChange={e => setNewTask(prev => ({ ...prev, est_minutes: +e.target.value }))} />
             </label>
             <button className="btn btn-primary mb-2" onClick={addTask} disabled={!newTask.name}>
               Legg til
