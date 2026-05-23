@@ -15,11 +15,11 @@ type Profile = {
 }
 
 const THEMES = [
-  { id: 'green',  label: 'Skog',    color: '#2D5A27' },
-  { id: 'blue',   label: 'Hav',     color: '#185FA5' },
+  { id: 'green',  label: 'Skog',       color: '#2D5A27' },
+  { id: 'blue',   label: 'Hav',        color: '#185FA5' },
   { id: 'amber',  label: 'Solnedgang', color: '#BA7517' },
-  { id: 'red',    label: 'Høst',    color: '#A32D2D' },
-  { id: 'purple', label: 'Lavendel', color: '#6B3FA0' },
+  { id: 'red',    label: 'Høst',       color: '#A32D2D' },
+  { id: 'purple', label: 'Lavendel',   color: '#6B3FA0' },
 ]
 
 export default function SettingsPage() {
@@ -28,12 +28,13 @@ export default function SettingsPage() {
     max_guests: 4, default_price: 900, default_cleaning: 400,
     cleaner_name: '', cleaner_phone: '', theme_color: 'green'
   })
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState(false)
-  const [saved, setSaved]       = useState(false)
-  const [email, setEmail]       = useState('')
-  const [tasks, setTasks]       = useState<{id:string,name:string,est_minutes:number,is_active:boolean}[]>([])
-  const [newTask, setNewTask]   = useState({ name: '', est_minutes: 15 })
+  const [isNewUser, setIsNewUser]   = useState(false)
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [saved, setSaved]           = useState(false)
+  const [email, setEmail]           = useState('')
+  const [tasks, setTasks]           = useState<{id:string,name:string,est_minutes:number,is_active:boolean}[]>([])
+  const [newTask, setNewTask]       = useState({ name: '', est_minutes: 15 })
   const [showAddTask, setShowAddTask] = useState(false)
 
   useEffect(() => {
@@ -47,7 +48,14 @@ export default function SettingsPage() {
         .select('*')
         .eq('id', session.user.id)
         .single()
-      if (prof) setProfile(prof)
+
+      if (prof) {
+        setProfile(prof)
+        // Ny brukar viss house_name er tomt
+        if (!prof.house_name) setIsNewUser(true)
+      } else {
+        setIsNewUser(true)
+      }
 
       const { data: t } = await supabase
         .from('turnover_tasks')
@@ -71,9 +79,8 @@ export default function SettingsPage() {
       ...profile
     })
 
-    // Apply theme color
     applyTheme(profile.theme_color)
-
+    setIsNewUser(false)
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -100,11 +107,11 @@ export default function SettingsPage() {
     if (!newTask.name) return
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-    const maxOrder = Math.max(...tasks.map(t => tasks.indexOf(t)), 0) + 1
+    const maxOrder = tasks.length + 1
     const { data } = await supabase.from('turnover_tasks').insert({
       name: newTask.name,
       est_minutes: newTask.est_minutes,
-      sort_order: maxOrder + 1,
+      sort_order: maxOrder,
       is_active: true,
       user_id: session.user.id
     }).select().single()
@@ -117,6 +124,53 @@ export default function SettingsPage() {
 
   if (loading) return <div className="p-4"><div className="card animate-pulse h-60" /></div>
 
+  // Velkomstskjema for nye brukarar
+  if (isNewUser) return (
+    <div className="p-4 pb-24">
+      <div className="pt-2 mb-6">
+        <h1 className="display text-3xl mb-1">Velkommen! 👋</h1>
+        <p className="text-sm text-[var(--c-muted)]">Fyll inn litt info om huset ditt for å kome i gang</p>
+      </div>
+
+      <p className="section-lbl">Kva heiter huset ditt?</p>
+      <div className="card mb-3">
+        <label className="block mb-3">
+          <span className="field-label">Namn på huset</span>
+          <input type="text" className="field-input" value={profile.house_name}
+            onChange={e => p('house_name', e.target.value)}
+            placeholder="T.d. Tunet, Solbakken..." autoFocus />
+        </label>
+        <label className="block">
+          <span className="field-label">Stad / adresse</span>
+          <input type="text" className="field-input" value={profile.house_location}
+            onChange={e => p('house_location', e.target.value)}
+            placeholder="T.d. Voss, Vestland" />
+        </label>
+      </div>
+
+      <p className="section-lbl">Kapasitet</p>
+      <div className="card mb-3">
+        <div className="grid grid-cols-2 gap-2.5">
+          <label className="block">
+            <span className="field-label">Antal soverom</span>
+            <input type="number" className="field-input" min={1} max={10} value={profile.bedrooms}
+              onChange={e => p('bedrooms', +e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="field-label">Maks gjester</span>
+            <input type="number" className="field-input" min={1} max={20} value={profile.max_guests}
+              onChange={e => p('max_guests', +e.target.value)} />
+          </label>
+        </div>
+      </div>
+
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving || !profile.house_name}>
+        {saving ? 'Lagrar...' : 'Kom i gang →'}
+      </button>
+    </div>
+  )
+
+  // Vanleg innstillingsside
   return (
     <div className="p-4 pb-24">
       <div className="flex justify-between items-center mb-4 pt-2">
@@ -126,7 +180,6 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Gardshusinfo */}
       <p className="section-lbl">Gardshuset ditt</p>
       <div className="card mb-3">
         <label className="block mb-3">
@@ -153,7 +206,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Standardprisar */}
       <p className="section-lbl">Standard booking-prisar</p>
       <div className="card mb-3">
         <div className="grid grid-cols-2 gap-2.5">
@@ -168,12 +220,8 @@ export default function SettingsPage() {
               onChange={e => p('default_cleaning', +e.target.value)} />
           </label>
         </div>
-        <div className="text-xs text-[var(--c-muted)] mt-2">
-          Desse verdiane blir fylt inn automatisk når du lagar ny booking
-        </div>
       </div>
 
-      {/* Reinhaldar */}
       <p className="section-lbl">Reinhaldar / kontakt</p>
       <div className="card mb-3">
         <label className="block mb-3">
@@ -188,7 +236,6 @@ export default function SettingsPage() {
         </label>
       </div>
 
-      {/* Tema */}
       <p className="section-lbl">Fargetema</p>
       <div className="card mb-3">
         <div className="flex gap-3 flex-wrap">
@@ -199,9 +246,9 @@ export default function SettingsPage() {
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 gap: '6px', padding: '10px 14px', borderRadius: '10px',
                 border: profile.theme_color === theme.id
-                  ? `2px solid ${theme.color}`
+                  ? 2px solid ${theme.color}
                   : '2px solid var(--c-border)',
-                background: profile.theme_color === theme.id ? `${theme.color}15` : 'transparent',
+                background: profile.theme_color === theme.id ? ${theme.color}15 : 'transparent',
                 cursor: 'pointer'
               }}>
               <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: theme.color }} />
@@ -211,7 +258,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Turnover-oppgåver */}
       <p className="section-lbl">Turnover-oppgåver</p>
       <div className="card mb-3">
         {tasks.map((task, i) => (
@@ -233,7 +279,6 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Kontoinfo */}
       <p className="section-lbl">Konto</p>
       <div className="card">
         <div className="flex justify-between text-sm py-1">
@@ -242,7 +287,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Legg til oppgåve modal */}
       {showAddTask && (
         <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setShowAddTask(false)}>
           <div className="modal-sheet">
