@@ -16,6 +16,30 @@ const DEFAULT_TASKS = [
   { name: 'Ta dokumentasjonsbilete', sort_order: 9 },
 ]
 
+const DEFAULT_INVENTORY = [
+  // Reingjering
+  { name: 'Oppvaskmiddel',     category: 'cleaning',   unit: 'flaske', current_qty: 2,  min_qty: 1, max_qty: 5  },
+  { name: 'Vaskemiddel',       category: 'cleaning',   unit: 'flaske', current_qty: 2,  min_qty: 1, max_qty: 5  },
+  { name: 'Toalettreingjer',   category: 'cleaning',   unit: 'flaske', current_qty: 2,  min_qty: 1, max_qty: 5  },
+  { name: 'Allreingjer',       category: 'cleaning',   unit: 'flaske', current_qty: 2,  min_qty: 1, max_qty: 5  },
+  // Forbruksvarer
+  { name: 'Toalettpapir',      category: 'consumable', unit: 'rull',   current_qty: 12, min_qty: 4, max_qty: 24 },
+  { name: 'Tørkepapir',        category: 'consumable', unit: 'rull',   current_qty: 4,  min_qty: 2, max_qty: 8  },
+  { name: 'Søppelsekkar',      category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
+  { name: 'Oppvasktabs',       category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
+  { name: 'Såpe (hender)',     category: 'consumable', unit: 'flaske', current_qty: 3,  min_qty: 1, max_qty: 6  },
+  { name: 'Kaffe / te',        category: 'consumable', unit: 'pakke',  current_qty: 4,  min_qty: 1, max_qty: 8  },
+  { name: 'Tennbrikkett',      category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
+  // Tekstilar
+  { name: 'Handkle (liten)',   category: 'textile',    unit: 'stk',    current_qty: 6,  min_qty: 2, max_qty: 12 },
+  { name: 'Handkle (stor)',    category: 'textile',    unit: 'stk',    current_qty: 6,  min_qty: 2, max_qty: 12 },
+  { name: 'Sengeskift',        category: 'textile',    unit: 'sett',   current_qty: 4,  min_qty: 2, max_qty: 8  },
+  { name: 'Putevar',           category: 'textile',    unit: 'stk',    current_qty: 8,  min_qty: 4, max_qty: 16 },
+  // Utstyr
+  { name: 'Lyspærer',          category: 'equipment',  unit: 'stk',    current_qty: 4,  min_qty: 2, max_qty: 10 },
+  { name: 'Batterier (AA)',    category: 'equipment',  unit: 'stk',    current_qty: 8,  min_qty: 4, max_qty: 16 },
+]
+
 async function setupNewUser(userId: string) {
   // 1. Lag profil
   await supabase
@@ -23,19 +47,35 @@ async function setupNewUser(userId: string) {
     .upsert({ id: userId }, { onConflict: 'id' })
 
   // 2. Sjekk om brukar allereie har oppgåver
-  const { data: existing } = await supabase
+  const { data: existingTasks } = await supabase
     .from('turnover_tasks')
     .select('id')
     .eq('user_id', userId)
     .limit(1)
 
-  if (!existing || existing.length === 0) {
-    // Lag standardoppgåver
+  if (!existingTasks || existingTasks.length === 0) {
     await supabase.from('turnover_tasks').insert(
       DEFAULT_TASKS.map(t => ({
         ...t,
         user_id: userId,
         is_active: true,
+      }))
+    )
+  }
+
+  // 3. Sjekk om brukar allereie har lagervarer
+  const { data: existingInventory } = await supabase
+    .from('inventory_items')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+
+  if (!existingInventory || existingInventory.length === 0) {
+    await supabase.from('inventory_items').insert(
+      DEFAULT_INVENTORY.map(item => ({
+        ...item,
+        user_id: userId,
+        notes: null,
       }))
     )
   }
