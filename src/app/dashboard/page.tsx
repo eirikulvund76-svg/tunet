@@ -11,6 +11,11 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((new Date(dateStr).getTime() - today.getTime()) / 86400000)
 }
 
+function daysSince(dateStr: string): number {
+  const today = new Date(); today.setHours(0,0,0,0)
+  return Math.ceil((today.getTime() - new Date(dateStr).getTime()) / 86400000)
+}
+
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('nb-NO', { day:'numeric', month:'long' })
 }
@@ -35,9 +40,23 @@ async function toggleTask(key: string, done: boolean) {
   )
 }
 
+async function getLastBooking(): Promise<Booking | null> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .lt('check_out', TODAY)
+    .neq('status', 'cancelled')
+    .order('check_out', { ascending: false })
+    .limit(1)
+    .single()
+  if (error) return null
+  return data
+}
+
 export default function Dashboard() {
   const profile = useProfile()
   const [nextBooking, setNextBooking] = useState<Booking | null>(null)
+  const [lastBooking, setLastBooking] = useState<Booking | null>(null)
   const [lowStock, setLowStock]       = useState<InventoryItem[]>([])
   const [monthlyEco, setMonthlyEco]   = useState<MonthlyEconomy | null>(null)
   const [loading, setLoading]         = useState(true)
@@ -46,11 +65,13 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       getNextBooking(),
+      getLastBooking(),
       getLowStockItems(),
       getMonthlySummary(1),
       loadTasks(),
-    ]).then(([booking, stock, eco, tasks]) => {
+    ]).then(([booking, last, stock, eco, tasks]) => {
       setNextBooking(booking as Booking | null)
+      setLastBooking(last as Booking | null)
       setLowStock(stock as InventoryItem[])
       setMonthlyEco((eco as MonthlyEconomy[])[0] ?? null)
       setChecked(tasks as Record<string, boolean>)
@@ -65,6 +86,12 @@ export default function Dashboard() {
   }
 
   const month = new Date().toLocaleString('nb-NO', { month:'long', year:'numeric' })
+
+  // Vis kodeboks-oppgåve viss booking nettopp er avslutta (siste 3 dagar)
+  // eller ny booking startar innan 2 dagar
+  const showKodeboks =
+    (lastBooking !== null && daysSince(lastBooking.check_out) <= 3) ||
+    (nextBooking !== null && daysUntil(nextBooking.check_in) <= 2)
 
   function Task({ taskKey, label, badge, badgeClass }: {
     taskKey: string, label: string, badge: string, badgeClass: string
@@ -82,6 +109,10 @@ export default function Dashboard() {
       </div>
     )
   }
+
+  const hasAnyTask = lowStock.length > 0 ||
+    (nextBooking !== null && daysUntil(nextBooking.check_in) <= 2) ||
+    showKodeboks
 
   return (
     <div className="p-4">
@@ -124,8 +155,10 @@ export default function Dashboard() {
           <Task taskKey={'turnover_' + nextBooking.id}
             label={'Klargjere til ' + nextBooking.guest_name} badge="Turnover" badgeClass="badge-blue" />
         )}
-        <Task taskKey="kodeboks" label="Bytt kodeboks-kode" badge="Gjerast" badgeClass="badge-amber" />
-        {lowStock.length === 0 && !nextBooking && (
+        {showKodeboks && (
+          <Task taskKey="kodeboks" label="Bytt kodeboks-kode" badge="Gjerast" badgeClass="badge-amber" />
+        )}
+        {!hasAnyTask && (
           <div className="py-2 text-sm text-[var(--c-muted)]">Ingen oppgåver i dag 🎉</div>
         )}
       </div>
