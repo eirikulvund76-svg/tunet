@@ -143,9 +143,9 @@ export default function LoginPage() {
       alignItems: 'center', justifyContent: 'center', padding: '24px'
     }}>
       <div style={{ width: '100%', maxWidth: '360px' }}>
-        <h1 className="display text-4xl text-center mb-2">Tunet</h1>
+        <h1 className="display text-4xl text-center mb-2">Verten</h1>
         <p className="text-center text-sm text-[var(--c-muted)] mb-8">
-          Driftsystem for Airbnb-gardshus
+          Driftsystem for Airbnb-vertar
         </p>
         <div className="card">
           <h2 className="display text-xl mb-4">
