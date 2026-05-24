@@ -66,12 +66,16 @@ export default function LoginPage() {
         const uid = loginData.user!.id
         setUserId(uid)
         // Lag oppgåver og lagervarer (ignorer feil viss dei allereie finst)
-        await supabase.from('turnover_tasks').insert(
-          DEFAULT_TASKS.map(t => ({ ...t, user_id: uid, is_active: true }))
-        ).then(() => {}).catch(() => {})
-        await supabase.from('inventory_items').insert(
-          DEFAULT_INVENTORY.map(item => ({ ...item, user_id: uid, notes: null }))
-        ).then(() => {}).catch(() => {})
+        try {
+          await supabase.from('turnover_tasks').insert(
+            DEFAULT_TASKS.map(t => ({ ...t, user_id: uid, is_active: true }))
+          )
+        } catch {}
+        try {
+          await supabase.from('inventory_items').insert(
+            DEFAULT_INVENTORY.map(item => ({ ...item, user_id: uid, notes: null }))
+          )
+        } catch {}
         // Vis velkomstskjema
         setStep('welcome')
       } else {
