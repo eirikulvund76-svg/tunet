@@ -22,9 +22,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (!session && pathname !== '/login') {
         router.replace('/login')
       }
-      if (session && pathname === '/login') {
-        router.replace('/dashboard')
-      }
+      // IKKJE redirect automatisk frå login – login-sida handterer dette sjølv
     })
 
     return () => subscription.unsubscribe()
