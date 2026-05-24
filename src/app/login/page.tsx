@@ -55,17 +55,14 @@ export default function LoginPage() {
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
-        // Vent og prøv å logga inn - prøv fleire gonger viss det feilar
-        let loginData = null
-        for (let i = 0; i < 5; i++) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          const { data: ld, error: le } = await supabase.auth.signInWithPassword({ email, password })
-          if (!le && ld.user) { loginData = ld; break }
-        }
-        if (!loginData) throw new Error('Kunne ikkje logga inn automatisk – prøv å logga inn manuelt')
-        const uid = loginData.user!.id
+
+        // Supabase returnerer session direkte når email-bekreftelse er av
+        let uid = data.user?.id
+        if (!uid) throw new Error('Ingen brukar returnert frå registrering')
+
         setUserId(uid)
-        // Lag oppgåver og lagervarer (ignorer feil viss dei allereie finst)
+
+        // Lag oppgåver og lagervarer
         try {
           await supabase.from('turnover_tasks').insert(
             DEFAULT_TASKS.map(t => ({ ...t, user_id: uid, is_active: true }))
@@ -76,6 +73,7 @@ export default function LoginPage() {
             DEFAULT_INVENTORY.map(item => ({ ...item, user_id: uid, notes: null }))
           )
         } catch {}
+
         // Vis velkomstskjema
         setStep('welcome')
       } else {
