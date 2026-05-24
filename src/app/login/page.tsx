@@ -55,11 +55,14 @@ export default function LoginPage() {
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
-        // Vent litt så Supabase får registrert brukaren
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        // Logg inn automatisk
-        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
-        if (loginError) throw loginError
+        // Vent og prøv å logga inn - prøv fleire gonger viss det feilar
+        let loginData = null
+        for (let i = 0; i < 5; i++) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          const { data: ld, error: le } = await supabase.auth.signInWithPassword({ email, password })
+          if (!le && ld.user) { loginData = ld; break }
+        }
+        if (!loginData) throw new Error('Kunne ikkje logga inn automatisk – prøv å logga inn manuelt')
         const uid = loginData.user!.id
         setUserId(uid)
         // Lag oppgåver og lagervarer (ignorer feil viss dei allereie finst)
