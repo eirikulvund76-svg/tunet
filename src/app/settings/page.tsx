@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { syncIcalBookings } from '@/lib/ical'
 
 type Profile = {
   house_name: string
@@ -12,6 +13,7 @@ type Profile = {
   cleaner_name: string
   cleaner_phone: string
   theme_color: string
+  ical_url: string
 }
 
 const THEMES = [
@@ -26,16 +28,17 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile>({
     house_name: '', house_location: '', bedrooms: 2,
     max_guests: 4, default_price: 900, default_cleaning: 400,
-    cleaner_name: '', cleaner_phone: '', theme_color: 'green'
+    cleaner_name: '', cleaner_phone: '', theme_color: 'green', ical_url: ''
   })
-  const [isNewUser, setIsNewUser]   = useState(false)
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState(false)
-  const [saved, setSaved]           = useState(false)
-  const [email, setEmail]           = useState('')
-  const [tasks, setTasks]           = useState<{id:string,name:string,est_minutes:number,is_active:boolean}[]>([])
-  const [newTask, setNewTask]       = useState({ name: '', est_minutes: 15 })
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [saved, setSaved]         = useState(false)
+  const [email, setEmail]         = useState('')
+  const [tasks, setTasks]         = useState<{id:string,name:string,est_minutes:number,is_active:boolean}[]>([])
+  const [newTask, setNewTask]     = useState({ name: '', est_minutes: 15 })
   const [showAddTask, setShowAddTask] = useState(false)
+  const [syncing, setSyncing]     = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -44,17 +47,8 @@ export default function SettingsPage() {
       setEmail(session.user.email ?? '')
 
       const { data: prof } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-
-      if (prof) {
-        setProfile(prof)
-        if (!prof.house_name) setIsNewUser(true)
-      } else {
-        setIsNewUser(true)
-      }
+        .from('user_profiles').select('*').eq('id', session.user.id).single()
+      if (prof) setProfile({ ...profile, ...prof })
 
       const { data: t } = await supabase
         .from('turnover_tasks')
@@ -74,16 +68,28 @@ export default function SettingsPage() {
     if (!session) return
     await supabase.from('user_profiles').upsert({ id: session.user.id, ...profile })
     applyTheme(profile.theme_color)
-    setIsNewUser(false)
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
+  async function handleSync() {
+    if (!profile.ical_url) return
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const result = await syncIcalBookings(profile.ical_url)
+      setSyncResult(`✓ Synkronisert! ${result.created} nye bookingar, ${result.skipped} allereie lagra.`)
+    } catch (e: any) {
+      setSyncResult(`⚠ Feil: ${e.message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   function applyTheme(colorId: string) {
     const theme = THEMES.find(t => t.id === colorId)
-    if (!theme) return
-    document.documentElement.style.setProperty('--c-accent', theme.color)
+    if (theme) document.documentElement.style.setProperty('--c-accent', theme.color)
   }
 
   async function toggleTask(id: string, active: boolean) {
@@ -102,11 +108,8 @@ export default function SettingsPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     const { data } = await supabase.from('turnover_tasks').insert({
-      name: newTask.name,
-      est_minutes: newTask.est_minutes,
-      sort_order: tasks.length + 1,
-      is_active: true,
-      user_id: session.user.id
+      name: newTask.name, est_minutes: newTask.est_minutes,
+      sort_order: tasks.length + 1, is_active: true, user_id: session.user.id
     }).select().single()
     if (data) setTasks(prev => [...prev, data])
     setNewTask({ name: '', est_minutes: 15 })
@@ -117,51 +120,6 @@ export default function SettingsPage() {
 
   if (loading) return <div className="p-4"><div className="card animate-pulse h-60" /></div>
 
-  if (isNewUser) return (
-    <div className="p-4 pb-24">
-      <div className="pt-2 mb-6">
-        <h1 className="display text-3xl mb-1">Velkommen! 👋</h1>
-        <p className="text-sm text-[var(--c-muted)]">Fyll inn litt info om huset ditt for å kome i gang</p>
-      </div>
-
-      <p className="section-lbl">Kva heiter huset ditt?</p>
-      <div className="card mb-3">
-        <label className="block mb-3">
-          <span className="field-label">Namn på huset</span>
-          <input type="text" className="field-input" value={profile.house_name}
-            onChange={e => p('house_name', e.target.value)}
-            placeholder="T.d. Tunet, Solbakken..." autoFocus />
-        </label>
-        <label className="block">
-          <span className="field-label">Stad / adresse</span>
-          <input type="text" className="field-input" value={profile.house_location}
-            onChange={e => p('house_location', e.target.value)}
-            placeholder="T.d. Voss, Vestland" />
-        </label>
-      </div>
-
-      <p className="section-lbl">Kapasitet</p>
-      <div className="card mb-3">
-        <div className="grid grid-cols-2 gap-2.5">
-          <label className="block">
-            <span className="field-label">Antal soverom</span>
-            <input type="number" className="field-input" min={1} max={10} value={profile.bedrooms}
-              onChange={e => p('bedrooms', +e.target.value)} />
-          </label>
-          <label className="block">
-            <span className="field-label">Maks gjester</span>
-            <input type="number" className="field-input" min={1} max={20} value={profile.max_guests}
-              onChange={e => p('max_guests', +e.target.value)} />
-          </label>
-        </div>
-      </div>
-
-      <button className="btn btn-primary" onClick={handleSave} disabled={saving || !profile.house_name}>
-        {saving ? 'Lagrar...' : 'Kom i gang →'}
-      </button>
-    </div>
-  )
-
   return (
     <div className="p-4 pb-24">
       <div className="flex justify-between items-center mb-4 pt-2">
@@ -171,6 +129,7 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* Gardshusinfo */}
       <p className="section-lbl">Gardshuset ditt</p>
       <div className="card mb-3">
         <label className="block mb-3">
@@ -197,6 +156,36 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Airbnb iCal-sync */}
+      <p className="section-lbl">Airbnb kalender-sync</p>
+      <div className="card mb-3">
+        <div className="text-xs text-[var(--c-muted)] mb-3">
+          Finn iCal-lenka på Airbnb: Kalender → Tilgjengelighet → Eksporter kalender
+        </div>
+        <label className="block mb-3">
+          <span className="field-label">iCal-lenke frå Airbnb</span>
+          <input type="url" className="field-input" value={profile.ical_url}
+            onChange={e => p('ical_url', e.target.value)}
+            placeholder="https://www.airbnb.com/calendar/ical/..." />
+        </label>
+        <div className="flex gap-2">
+          <button className="btn btn-primary flex-1 py-2.5 text-sm" onClick={handleSync}
+            disabled={syncing || !profile.ical_url}>
+            {syncing ? '⟳ Synkroniserer...' : '↓ Synkroniser no'}
+          </button>
+        </div>
+        {syncResult && (
+          <div className="mt-2 p-2.5 rounded-lg text-xs"
+            style={{
+              background: syncResult.startsWith('✓') ? 'var(--c-accent-lt)' : 'var(--c-amber-lt)',
+              color: syncResult.startsWith('✓') ? 'var(--c-accent)' : 'var(--c-amber)'
+            }}>
+            {syncResult}
+          </div>
+        )}
+      </div>
+
+      {/* Standardprisar */}
       <p className="section-lbl">Standard booking-prisar</p>
       <div className="card mb-3">
         <div className="grid grid-cols-2 gap-2.5">
@@ -211,8 +200,12 @@ export default function SettingsPage() {
               onChange={e => p('default_cleaning', +e.target.value)} />
           </label>
         </div>
+        <div className="text-xs text-[var(--c-muted)] mt-2">
+          Fylt inn automatisk ved ny booking
+        </div>
       </div>
 
+      {/* Reinhaldar */}
       <p className="section-lbl">Reinhaldar / kontakt</p>
       <div className="card mb-3">
         <label className="block mb-3">
@@ -227,6 +220,7 @@ export default function SettingsPage() {
         </label>
       </div>
 
+      {/* Tema */}
       <p className="section-lbl">Fargetema</p>
       <div className="card mb-3">
         <div className="flex gap-3 flex-wrap">
@@ -236,9 +230,7 @@ export default function SettingsPage() {
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 gap: '6px', padding: '10px 14px', borderRadius: '10px',
-                border: profile.theme_color === theme.id
-                  ? `2px solid ${theme.color}`
-                  : '2px solid var(--c-border)',
+                border: profile.theme_color === theme.id ? `2px solid ${theme.color}` : '2px solid var(--c-border)',
                 background: profile.theme_color === theme.id ? `${theme.color}15` : 'transparent',
                 cursor: 'pointer'
               }}>
@@ -249,6 +241,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Turnover-oppgåver */}
       <p className="section-lbl">Turnover-oppgåver</p>
       <div className="card mb-3">
         {tasks.map((task, i) => (
@@ -261,8 +254,7 @@ export default function SettingsPage() {
               {task.name}
             </span>
             <span className="text-xs text-[var(--c-muted)]">{task.est_minutes} min</span>
-            <button onClick={() => deleteTask(task.id)}
-              className="text-[var(--c-muted)] text-lg leading-none">×</button>
+            <button onClick={() => deleteTask(task.id)} className="text-[var(--c-muted)] text-lg leading-none">×</button>
           </div>
         ))}
         <button className="btn btn-secondary mt-3 text-sm py-2" onClick={() => setShowAddTask(true)}>
@@ -270,6 +262,7 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* Konto */}
       <p className="section-lbl">Konto</p>
       <div className="card">
         <div className="flex justify-between text-sm py-1">
@@ -286,17 +279,15 @@ export default function SettingsPage() {
             <label className="block mb-3">
               <span className="field-label">Namn på oppgåva</span>
               <input type="text" className="field-input" value={newTask.name}
-                onChange={e => setNewTask(prev => ({ ...prev, name: e.target.value }))}
+                onChange={e => setNewTask(p => ({ ...p, name: e.target.value }))}
                 placeholder="T.d. Lufte soverom" />
             </label>
             <label className="block mb-4">
               <span className="field-label">Estimert tid (minutt)</span>
               <input type="number" className="field-input" min={1} value={newTask.est_minutes}
-                onChange={e => setNewTask(prev => ({ ...prev, est_minutes: +e.target.value }))} />
+                onChange={e => setNewTask(p => ({ ...p, est_minutes: +e.target.value }))} />
             </label>
-            <button className="btn btn-primary mb-2" onClick={addTask} disabled={!newTask.name}>
-              Legg til
-            </button>
+            <button className="btn btn-primary mb-2" onClick={addTask} disabled={!newTask.name}>Legg til</button>
             <button className="btn btn-secondary" onClick={() => setShowAddTask(false)}>Avbryt</button>
           </div>
         </div>
