@@ -5,17 +5,13 @@ import { supabase } from './supabase'
 type ICalEvent = {
   uid: string
   summary: string
-  start: string   // ISO date string
-  end: string     // ISO date string
+  start: string
+  end: string
 }
 
-/**
- * Enkel iCal-parser — les .ics-format og returnerer events
- */
 export function parseIcal(icsText: string): ICalEvent[] {
   const events: ICalEvent[] = []
   const lines = icsText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-
   let current: Partial<ICalEvent> | null = null
 
   for (const line of lines) {
@@ -40,13 +36,9 @@ export function parseIcal(icsText: string): ICalEvent[] {
       }
     }
   }
-
   return events
 }
 
-/**
- * Konverterer iCal-datoformat (20250615 eller 20250615T120000Z) til ISO-string
- */
 function parseIcalDate(val: string): string {
   const clean = val.replace(/[TZ]/g, '')
   const year  = clean.slice(0, 4)
@@ -55,11 +47,7 @@ function parseIcalDate(val: string): string {
   return `${year}-${month}-${day}`
 }
 
-/**
- * Hentar iCal-lenka via CORS-proxy og returnerer rå tekst
- */
 async function fetchIcal(url: string): Promise<string> {
-  // Brukar ein open CORS-proxy sidan Airbnb ikkje har CORS-headers
   const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
   const res = await fetch(proxy)
   if (!res.ok) throw new Error('Klarte ikkje hente iCal-lenka')
@@ -67,9 +55,6 @@ async function fetchIcal(url: string): Promise<string> {
   return data.contents
 }
 
-/**
- * Hovudfunksjon — hentar iCal og synkroniserer med Supabase
- */
 export async function syncIcalBookings(icalUrl: string): Promise<{
   created: number
   skipped: number
@@ -81,13 +66,13 @@ export async function syncIcalBookings(icalUrl: string): Promise<{
   const userId = session.user.id
   let created = 0, skipped = 0, errors = 0
 
-  // 1) Hent iCal
+  // Hent iCal
   const icsText = await fetchIcal(icalUrl)
 
-  // 2) Parse
+  // Parse
   const events = parseIcal(icsText)
 
-  // 3) Filtrer vekk "Not available" og tomme oppføringar
+  // Filtrer vekk "Not available" og tomme oppføringar
   const bookings = events.filter(e =>
     e.summary &&
     !e.summary.toLowerCase().includes('not available') &&
@@ -95,18 +80,24 @@ export async function syncIcalBookings(icalUrl: string): Promise<{
     e.start !== e.end
   )
 
-  // 4) For kvar booking — upsert i Supabase
   for (const event of bookings) {
     try {
-      // Sjekk om den allereie finst
+      // Sjekk om booking med same dato allereie finst
       const { data: existing } = await supabase
         .from('bookings')
         .select('id')
-        .eq('ical_uid', event.uid)
         .eq('user_id', userId)
+        .eq('check_in', event.start)
+        .eq('check_out', event.end)
+        .neq('status', 'cancelled')
         .single()
 
       if (existing) {
+        // Oppdater ical_uid viss han manglar
+        await supabase
+          .from('bookings')
+          .update({ ical_uid: event.uid, source: 'airbnb_ical' })
+          .eq('id', existing.id)
         skipped++
         continue
       }
@@ -117,7 +108,7 @@ export async function syncIcalBookings(icalUrl: string): Promise<{
         check_in:        event.start,
         check_out:       event.end,
         num_guests:      1,
-        price_per_night: 0,   // Ukjent frå iCal
+        price_per_night: 0,
         cleaning_fee:    0,
         status:          'confirmed',
         platform:        'airbnb',
