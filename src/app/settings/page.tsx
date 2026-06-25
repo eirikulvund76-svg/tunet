@@ -203,6 +203,9 @@ export default function SettingsPage() {
         <div className="text-xs text-[var(--c-muted)] mt-2">
           Fylt inn automatisk ved ny booking
         </div>
+        <button className="btn btn-primary mt-3 py-2 text-sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Lagrar...' : saved ? '✓ Lagra!' : 'Lagre prisar'}
+        </button>
       </div>
 
       {/* Reinhaldar */}
