@@ -1,4 +1,4 @@
-// src/lib/ical.ts — Hentar og parser iCal-filer frå Airbnb
+﻿// src/lib/ical.ts â€” Hentar og parser iCal-filer frÃ¥ Airbnb
 
 import { supabase } from './supabase'
 
@@ -48,11 +48,9 @@ function parseIcalDate(val: string): string {
 }
 
 async function fetchIcal(url: string): Promise<string> {
-  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
-  const res = await fetch(proxy)
+  const res = await fetch(`/api/ical?url=${encodeURIComponent(url)}`)
   if (!res.ok) throw new Error('Klarte ikkje hente iCal-lenka')
-  const data = await res.json()
-  return data.contents
+  return res.text()
 }
 
 export async function syncIcalBookings(icalUrl: string): Promise<{
@@ -72,7 +70,7 @@ export async function syncIcalBookings(icalUrl: string): Promise<{
   // Parse
   const events = parseIcal(icsText)
 
-  // Filtrer vekk "Not available" og tomme oppføringar
+  // Filtrer vekk "Not available" og tomme oppfÃ¸ringar
   const bookings = events.filter(e =>
     e.summary &&
     !e.summary.toLowerCase().includes('not available') &&
@@ -115,7 +113,7 @@ export async function syncIcalBookings(icalUrl: string): Promise<{
         source:          'airbnb_ical',
         ical_uid:        event.uid,
         user_id:         userId,
-        notes:           'Importert automatisk frå Airbnb iCal'
+        notes:           'Importert automatisk frÃ¥ Airbnb iCal'
       })
       created++
     } catch {
@@ -125,3 +123,4 @@ export async function syncIcalBookings(icalUrl: string): Promise<{
 
   return { created, skipped, errors }
 }
+
