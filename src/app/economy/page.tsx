@@ -159,7 +159,7 @@ export default function EconomyPage() {
                   const total = n * b.price_per_night + b.cleaning_fee
                   return (
                     <div key={b.id} className={`py-3 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
-                      <div className="flex justify-between items-start">
+                      <div className="flex justify-between items-center">
                         <div>
                           <div className="font-medium text-sm">{b.guest_name || 'Airbnb-gjest'}</div>
                           <div className="text-xs text-[var(--c-muted)] mt-0.5">
@@ -168,18 +168,23 @@ export default function EconomyPage() {
                             {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
                             {' · '}{n} netter
                           </div>
-                          <div className="text-xs text-[var(--c-muted)]">
-                            {fmt(b.price_per_night)} kr/natt + {fmt(b.cleaning_fee)} kr vask
-                          </div>
+                          {b.cleaning_fee > 0 && (
+                            <div className="text-xs text-[var(--c-muted)]">
+                              + {fmt(b.cleaning_fee)} kr vask
+                            </div>
+                          )}
                         </div>
-                        <div className="font-semibold text-[var(--c-accent)]">{fmt(total)} kr</div>
+                        <div className="text-right">
+                          <div className="font-semibold text-[var(--c-accent)]">{fmt(total)} kr</div>
+                          <div className="text-xs text-[var(--c-muted)]">{fmt(b.price_per_night)} kr/natt</div>
+                        </div>
                       </div>
                     </div>
                   )
                 })}
-                <div className="pt-2 mt-1 border-t border-[var(--c-border)] flex justify-between">
-                  <span className="text-sm text-[var(--c-muted)]">Totalt</span>
-                  <span className="font-semibold text-sm">{fmt(totalInntekt)} kr</span>
+                <div className="pt-2 mt-1 border-t border-[var(--c-border)] flex justify-between items-center">
+                  <span className="text-sm font-medium">Totalt denne månaden</span>
+                  <span className="font-semibold text-[var(--c-accent)]">{fmt(totalInntekt)} kr</span>
                 </div>
               </div>
           }
