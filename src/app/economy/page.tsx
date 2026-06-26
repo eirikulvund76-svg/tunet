@@ -1,252 +1,227 @@
 'use client'
+// src/app/economy/page.tsx
 import { useState, useEffect } from 'react'
-import { supabase, getEconomyEntries, getMonthlySummary, getBookingPnl, createEconomyEntry } from '@/lib/supabase'
-import type { EconomyEntry, MonthlyEconomy, BookingPnl } from '@/types/database'
+import { supabase } from '@/lib/supabase'
 
-const INCOME_CATS  = ['booking_revenue','cleaning_fee','other_income']
-const EXPENSE_CATS = ['electricity','insurance','maintenance','consumables','platform_fee','other']
-const CAT_LABELS: Record<string,string> = {
-  booking_revenue:'Bookinginntekt', cleaning_fee:'Vaskegebyr', other_income:'Anna inntekt',
-  electricity:'Straum', insurance:'Forsikring', maintenance:'Vedlikehald',
-  consumables:'Forbruksvarer', platform_fee:'Plattformgebyr', other:'Anna utgift'
+const MONTHS = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember']
+
+const EXPENSE_CATS: Record<string,string> = {
+  electricity: 'Straum',
+  insurance: 'Forsikring',
+  maintenance: 'Vedlikehald',
+  consumables: 'Forbruksvarer',
+  platform_fee: 'Plattformgebyr',
+  other: 'Anna utgift',
 }
 
 function fmt(n: number) { return n.toLocaleString('nb-NO') }
+function nights(ci: string, co: string) {
+  return Math.ceil((new Date(co).getTime() - new Date(ci).getTime()) / 86400000)
+}
+
+type Booking = { id: string; guest_name: string; check_in: string; check_out: string; price_per_night: number; cleaning_fee: number; status: string }
+type Expense = { id: string; category: string; amount: number; description: string | null; date: string }
 
 export default function EconomyPage() {
   const now = new Date()
-  const [year,  setYear]    = useState(now.getFullYear())
-  const [month, setMonth]   = useState(now.getMonth() + 1)
-  const [tab,   setTab]     = useState<'income'|'expenses'|'bookings'|'trend'>('income')
-  const [entries, setEntries]   = useState<EconomyEntry[]>([])
-  const [monthly, setMonthly]   = useState<MonthlyEconomy[]>([])
-  const [pnl,     setPnl]       = useState<BookingPnl[]>([])
+  const [year, setYear]   = useState(now.getFullYear())
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [tab, setTab]     = useState<'oversikt'|'utgifter'>('oversikt')
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [showAdd, setShowAdd]   = useState(false)
-  const [saving,  setSaving]    = useState(false)
-  const [form, setForm] = useState({ type:'income' as 'income'|'expense', category:'booking_revenue', amount:'', description:'', date:'' })
+  const [saving, setSaving]     = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [form, setForm] = useState({ category: 'electricity', amount: '', description: '', date: '' })
 
   async function load() {
-    const [e, m, p] = await Promise.all([
-      getEconomyEntries(year, month),
-      getMonthlySummary(6),
-      getBookingPnl()
-    ])
-    setEntries(e); setMonthly(m); setPnl(p)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const uid = session.user.id
+
+    // Hent bookingar som overlapper med månaden
+    const from = `${year}-${String(month).padStart(2,'0')}-01`
+    const to   = `${year}-${String(month).padStart(2,'0')}-${new Date(year, month, 0).getDate()}`
+
+    const { data: b } = await supabase
+      .from('bookings')
+      .select('id, guest_name, check_in, check_out, price_per_night, cleaning_fee, status')
+      .eq('user_id', uid)
+      .neq('status', 'cancelled')
+      .lte('check_in', to)
+      .gte('check_out', from)
+      .order('check_in')
+
+    // Hent utgifter frå economy_entries
+    const { data: e } = await supabase
+      .from('economy_entries')
+      .select('id, category, amount, description, date')
+      .eq('user_id', uid)
+      .eq('type', 'expense')
+      .gte('date', from)
+      .lte('date', to)
+      .order('date')
+
+    setBookings(b ?? [])
+    setExpenses(e ?? [])
   }
 
   useEffect(() => { load() }, [year, month])
 
-  const income   = entries.filter(e => e.type === 'income').reduce((a,e) => a + e.amount, 0)
-  const expenses = entries.filter(e => e.type === 'expense').reduce((a,e) => a + e.amount, 0)
-  const net      = income - expenses
-
   function prevMonth() { if (month===1){setMonth(12);setYear(y=>y-1)}else setMonth(m=>m-1) }
   function nextMonth() { if (month===12){setMonth(1);setYear(y=>y+1)}else setMonth(m=>m+1) }
+
+  const totalInntekt  = bookings.reduce((a, b) => a + nights(b.check_in, b.check_out) * b.price_per_night + b.cleaning_fee, 0)
+  const totalUtgifter = expenses.reduce((a, e) => a + e.amount, 0)
+  const netto         = totalInntekt - totalUtgifter
 
   async function handleAdd() {
     if (!form.amount || !form.date) return
     setSaving(true)
-    await createEconomyEntry({
-      booking_id: null,
-      type: form.type,
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await supabase.from('economy_entries').insert({
+      user_id: session.user.id,
+      type: 'expense',
       category: form.category,
       amount: +form.amount,
       description: form.description || null,
-      date: form.date
+      date: form.date,
+      booking_id: null,
     })
-    setSaving(false); setShowAdd(false); load()
-  }
-
-  async function handleDelete(entry: EconomyEntry) {
-    const label = CAT_LABELS[entry.category] ?? entry.category
-    if (!confirm(`Slett "${label}" på ${fmt(entry.amount)} kr?`)) return
-    await supabase.from('economy_entries').delete().eq('id', entry.id)
+    setSaving(false)
+    setShowAdd(false)
+    setForm({ category: 'electricity', amount: '', description: '', date: '' })
     load()
   }
 
-  const incomeEntries  = entries.filter(e => e.type === 'income')
-  const expenseEntries = entries.filter(e => e.type === 'expense')
+  async function handleDelete(id: string) {
+    setDeleting(id)
+    await supabase.from('economy_entries').delete().eq('id', id)
+    setDeleting(null)
+    load()
+  }
 
   return (
-    <div className="p-4">
-      <div className="mb-4 pt-2">
-        <div className="flex justify-center items-center gap-4 mb-3">
-          <button onClick={prevMonth}
-            className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--c-border)] text-[var(--c-muted)]">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="15,18 9,12 15,6"/>
-            </svg>
+    <div className="p-4 pb-24">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4 pt-2">
+        <div className="flex items-center gap-3">
+          <button onClick={prevMonth} className="p-1 text-[var(--c-muted)]">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="15,18 9,12 15,6"/></svg>
           </button>
-          <h1 className="display text-2xl capitalize w-40 text-center">
-            {['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'][month-1]} {year}
-          </h1>
-          <button onClick={nextMonth}
-            className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--c-border)] text-[var(--c-muted)]">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="9,18 15,12 9,6"/>
-            </svg>
+          <h1 className="display text-2xl capitalize">{MONTHS[month-1]} {year}</h1>
+          <button onClick={nextMonth} className="p-1 text-[var(--c-muted)]">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="9,18 15,12 9,6"/></svg>
           </button>
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="w-full text-center text-sm text-[var(--c-accent)] font-medium py-1">
-          + Legg til post
-        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 mb-2">
-        <div className="stat-card">
+      {/* Summakort */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="card text-center py-3">
           <div className="text-xs text-[var(--c-muted)] mb-1">Inntekt</div>
-          <div className="stat-val text-[var(--c-accent)]">{fmt(income)}</div>
+          <div className="font-semibold text-[var(--c-accent)]">{fmt(totalInntekt)}</div>
           <div className="text-xs text-[var(--c-muted)]">kr</div>
         </div>
-        <div className="stat-card">
+        <div className="card text-center py-3">
           <div className="text-xs text-[var(--c-muted)] mb-1">Utgifter</div>
-          <div className="stat-val text-[var(--c-red)]">{fmt(expenses)}</div>
+          <div className="font-semibold text-[var(--c-red)]">{fmt(totalUtgifter)}</div>
           <div className="text-xs text-[var(--c-muted)]">kr</div>
         </div>
-      </div>
-      <div className="stat-card mb-4">
-        <div className="text-xs text-[var(--c-muted)] mb-1">Netto</div>
-        <div className={`display text-4xl font-light ${net >= 0 ? 'text-[var(--c-accent)]' : 'text-[var(--c-red)]'}`}>
-          {net >= 0 ? '' : '−'}{fmt(Math.abs(net))} kr
+        <div className="card text-center py-3">
+          <div className="text-xs text-[var(--c-muted)] mb-1">Netto</div>
+          <div className={`font-semibold ${netto >= 0 ? 'text-[var(--c-accent)]' : 'text-[var(--c-red)]'}`}>{fmt(netto)}</div>
+          <div className="text-xs text-[var(--c-muted)]">kr</div>
         </div>
       </div>
 
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
-        {(['income','expenses','bookings','trend'] as const).map(t => (
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        {(['oversikt','utgifter'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap border transition-colors
+            className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors
               ${tab===t ? 'bg-[var(--c-accent)] text-white border-[var(--c-accent)]'
                         : 'bg-[var(--c-surface)] text-[var(--c-muted)] border-[var(--c-border)]'}`}>
-            {t==='income'?'Inntekter':t==='expenses'?'Utgifter':t==='bookings'?'Per booking':'Trend'}
+            {t === 'oversikt' ? 'Bookingar' : 'Utgifter'}
           </button>
         ))}
       </div>
 
-      {/* Inntekter */}
-      {tab === 'income' && (
-        incomeEntries.length === 0
-          ? <div className="card text-sm text-[var(--c-muted)]">Ingen inntekter denne månaden</div>
-          : <div className="card">
-              {incomeEntries.map((e, i) => (
-                <div key={e.id} className={`py-2.5 ${i<incomeEntries.length-1?'border-b border-[var(--c-border)]':''}`}
-                  style={{ borderLeft:'3px solid var(--c-accent)', paddingLeft:'10px' }}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-medium text-sm">{CAT_LABELS[e.category] ?? e.category}</div>
-                      {e.description && <div className="text-xs text-[var(--c-muted)]">{e.description}</div>}
-                      <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
+      {/* Bookingar */}
+      {tab === 'oversikt' && (
+        <>
+          {bookings.length === 0
+            ? <div className="card text-sm text-[var(--c-muted)]">Ingen bookingar denne månaden</div>
+            : <div className="card">
+                {bookings.map((b, i) => {
+                  const n = nights(b.check_in, b.check_out)
+                  const total = n * b.price_per_night + b.cleaning_fee
+                  return (
+                    <div key={b.id} className={`py-3 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium text-sm">{b.guest_name || 'Airbnb-gjest'}</div>
+                          <div className="text-xs text-[var(--c-muted)] mt-0.5">
+                            {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
+                            {' – '}
+                            {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
+                            {' · '}{n} netter
+                          </div>
+                          <div className="text-xs text-[var(--c-muted)]">
+                            {fmt(b.price_per_night)} kr/natt + {fmt(b.cleaning_fee)} kr vask
+                          </div>
+                        </div>
+                        <div className="font-semibold text-[var(--c-accent)]">{fmt(total)} kr</div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-[var(--c-accent)] text-sm">{fmt(e.amount)} kr</span>
-                      <button onClick={() => handleDelete(e)}
-                        className="text-[var(--c-muted)] hover:text-[var(--c-red)] text-lg leading-none">×</button>
-                    </div>
-                  </div>
+                  )
+                })}
+                <div className="pt-2 mt-1 border-t border-[var(--c-border)] flex justify-between">
+                  <span className="text-sm text-[var(--c-muted)]">Totalt</span>
+                  <span className="font-semibold text-sm">{fmt(totalInntekt)} kr</span>
                 </div>
-              ))}
-            </div>
+              </div>
+          }
+        </>
       )}
 
       {/* Utgifter */}
-      {tab === 'expenses' && (
-        expenseEntries.length === 0
-          ? <div className="card text-sm text-[var(--c-muted)]">Ingen utgifter denne månaden</div>
-          : <div className="card">
-              {expenseEntries.map((e, i) => (
-                <div key={e.id} className={`py-2.5 ${i<expenseEntries.length-1?'border-b border-[var(--c-border)]':''}`}
-                  style={{ borderLeft:'3px solid var(--c-red)', paddingLeft:'10px' }}>
-                  <div className="flex justify-between items-start">
+      {tab === 'utgifter' && (
+        <>
+          {expenses.length === 0
+            ? <div className="card text-sm text-[var(--c-muted)] mb-3">Ingen utgifter denne månaden</div>
+            : <div className="card mb-3">
+                {expenses.map((e, i) => (
+                  <div key={e.id} className={`flex justify-between items-center py-2.5 ${i < expenses.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
                     <div>
-                      <div className="font-medium text-sm">{CAT_LABELS[e.category] ?? e.category}</div>
+                      <div className="font-medium text-sm">{EXPENSE_CATS[e.category] ?? e.category}</div>
                       {e.description && <div className="text-xs text-[var(--c-muted)]">{e.description}</div>}
                       <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-[var(--c-red)] text-sm">{fmt(e.amount)} kr</span>
-                      <button onClick={() => handleDelete(e)}
-                        className="text-[var(--c-muted)] hover:text-[var(--c-red)] text-lg leading-none">×</button>
+                      <button onClick={() => handleDelete(e.id)} disabled={deleting===e.id}
+                        className="text-[var(--c-muted)] text-lg leading-none">×</button>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-      )}
-
-      {/* Per booking */}
-      {tab === 'bookings' && (
-        pnl.length === 0
-          ? <div className="card text-sm text-[var(--c-muted)]">Ingen booking-data enno</div>
-          : <div className="card">
-              {pnl.map((b, i) => (
-                <div key={b.id} className={`flex justify-between items-center py-2.5 ${i<pnl.length-1?'border-b border-[var(--c-border)]':''}`}>
-                  <div>
-                    <div className="font-medium text-sm">{b.guest_name}</div>
-                    <div className="text-xs text-[var(--c-muted)]">
-                      {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                      {' – '}
-                      {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                    </div>
-                    <div className="text-xs text-[var(--c-muted)]">{fmt(b.income)} inn · {fmt(b.expenses)} ut</div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`display text-xl ${b.net>=0?'text-[var(--c-accent)]':'text-[var(--c-red)]'}`}>
-                      {fmt(b.net)} kr
-                    </div>
-                    <div className="text-xs text-[var(--c-muted)]">netto</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-      )}
-
-      {/* Trend */}
-      {tab === 'trend' && (
-        <div className="card">
-          {monthly.length === 0
-            ? <div className="text-sm text-[var(--c-muted)]">Ingen data enno</div>
-            : monthly.map((m, i) => {
-              const d = new Date(m.month)
-              const maxNet = Math.max(...monthly.map(x => Math.abs(x.net)), 1)
-              return (
-                <div key={i} className={`py-2.5 ${i<monthly.length-1?'border-b border-[var(--c-border)]':''}`}>
-                  <div className="flex justify-between mb-1.5">
-                    <span className="text-sm capitalize">{d.toLocaleString('nb-NO',{month:'long',year:'numeric'})}</span>
-                    <span className={`font-medium text-sm ${m.net>=0?'text-[var(--c-accent)]':'text-[var(--c-red)]'}`}>
-                      {m.net>=0?'+':''}{fmt(m.net)} kr
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-[var(--c-border)] rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${m.net>=0?'bg-[var(--c-accent)]':'bg-[var(--c-red)]'}`}
-                      style={{ width: `${Math.round(Math.abs(m.net)/maxNet*100)}%` }} />
-                  </div>
-                </div>
-              )
-            })
+                ))}
+              </div>
           }
-        </div>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Legg til utgift</button>
+        </>
       )}
 
-      {/* Legg til modal */}
+      {/* Modal */}
       {showAdd && (
         <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setShowAdd(false)}>
           <div className="modal-sheet">
             <div className="modal-handle" />
-            <h2 className="display text-xl mb-4">Legg til post</h2>
-            <div className="flex gap-2 mb-3">
-              {(['income','expense'] as const).map(t => (
-                <button key={t} onClick={() => setForm(p=>({...p,type:t,category:t==='income'?'booking_revenue':'electricity'}))}
-                  className={`flex-1 btn ${form.type===t?'btn-primary':'btn-secondary'} py-2.5 text-sm`}>
-                  {t==='income'?'Inntekt':'Utgift'}
-                </button>
-              ))}
-            </div>
+            <h2 className="display text-xl mb-4">Ny utgift</h2>
             <label className="block mb-3">
               <span className="field-label">Kategori</span>
               <select className="field-input" value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}>
-                {(form.type==='income'?INCOME_CATS:EXPENSE_CATS).map(c=>(
-                  <option key={c} value={c}>{CAT_LABELS[c]}</option>
-                ))}
+                {Object.entries(EXPENSE_CATS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </label>
             <label className="block mb-3">
@@ -265,9 +240,9 @@ export default function EconomyPage() {
                 onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Eks: Straumrekning mai" />
             </label>
             <button className="btn btn-primary mb-2" onClick={handleAdd} disabled={saving}>
-              {saving?'Lagrar...':'Lagre post'}
+              {saving ? 'Lagrar...' : 'Lagre utgift'}
             </button>
-            <button className="btn btn-secondary" onClick={()=>setShowAdd(false)}>Avbryt</button>
+            <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>Avbryt</button>
           </div>
         </div>
       )}
