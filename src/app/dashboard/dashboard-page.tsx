@@ -24,6 +24,8 @@ export default function Dashboard() {
   const [lowStock, setLowStock]       = useState<InventoryItem[]>([])
   const [inntekt, setInntekt]         = useState<number | null>(null)
   const [utgifter, setUtgifter]       = useState<number | null>(null)
+  const [husnamn, setHusnamn]         = useState('Tunet')
+  const [stad, setStad]               = useState('')
   const [loading, setLoading]         = useState(true)
 
   useEffect(() => {
@@ -38,6 +40,14 @@ export default function Dashboard() {
       const from = `${year}-${String(month).padStart(2,'0')}-01`
       const to   = `${year}-${String(month).padStart(2,'0')}-${new Date(year, month, 0).getDate()}`
 
+      const { data: prof } = await supabase
+        .from('user_profiles')
+        .select('house_name, house_location')
+        .eq('id', uid)
+        .single()
+      if (prof?.house_name) setHusnamn(prof.house_name)
+      if (prof?.house_location) setStad(prof.house_location)
+
       const [stock, bookingsRes, nextRes, expensesRes] = await Promise.all([
         getLowStockItems(),
         supabase
@@ -46,7 +56,8 @@ export default function Dashboard() {
           .eq('user_id', uid)
           .neq('status', 'cancelled')
           .lte('check_in', to)
-          .gte('check_out', from),
+          .gte('check_out', from)
+          .order('check_in'),
         supabase
           .from('bookings')
           .select('*')
@@ -88,8 +99,8 @@ export default function Dashboard() {
     <div className="p-4">
       <div className="flex justify-between items-start mb-5 pt-2">
         <div>
-          <h1 className="display text-3xl leading-tight">Tunet</h1>
-          <p className="text-xs text-[var(--c-muted)] mt-0.5">Gardshus · Vossestrand</p>
+          <h1 className="display text-3xl leading-tight">{husnamn}</h1>
+          <p className="text-xs text-[var(--c-muted)] mt-0.5">{stad ? `Gardshus · ${stad}` : 'Gardshus'}</p>
         </div>
         <span className="badge badge-green mt-1">● Ledig</span>
       </div>
