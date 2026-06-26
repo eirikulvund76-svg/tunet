@@ -227,7 +227,6 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
-    </div>
 
       {/* Rediger namn modal */}
       {editBooking && (
