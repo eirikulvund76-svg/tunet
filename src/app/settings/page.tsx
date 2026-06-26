@@ -67,7 +67,18 @@ export default function SettingsPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Ikkje innlogga')
+
       await supabase.from('user_profiles').upsert({ id: session.user.id, ...profile })
+
+      await supabase
+        .from('bookings')
+        .update({
+          price_per_night: profile.default_price,
+          cleaning_fee: profile.default_cleaning,
+        })
+        .eq('user_id', session.user.id)
+        .neq('status', 'cancelled')
+
       applyTheme(profile.theme_color)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -174,11 +185,9 @@ export default function SettingsPage() {
             placeholder="https://www.airbnb.com/calendar/ical/..." />
         </label>
         <div className="flex gap-2">
-          <button className="btn btn-primary flex-1 py-2.5 text-sm flex items-center justify-center gap-2" onClick={handleSync}
+          <button className="btn btn-primary flex-1 py-2.5 text-sm" onClick={handleSync}
             disabled={syncing || !profile.ical_url}>
-            {syncing ? (
-              <><svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Synkroniserer...</>
-            ) : '↓ Synkroniser no'}
+            {syncing ? '⟳ Synkroniserer...' : '↓ Synkroniser no'}
           </button>
         </div>
         {syncResult && (
