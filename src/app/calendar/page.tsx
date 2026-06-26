@@ -89,6 +89,14 @@ export default function CalendarPage() {
     setEditSaving(false)
   }
 
+  async function handleCancel() {
+    if (!editBooking) return
+    if (!confirm('Er du sikker på at du vil kansellere denne bookinga?')) return
+    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', editBooking.id)
+    setEditBooking(null)
+    load()
+  }
+
   return (
     <div className="p-4">
       {/* Header */}
@@ -246,7 +254,10 @@ export default function CalendarPage() {
             <button className="btn btn-primary mb-2" onClick={handleEditSave} disabled={editSaving || !editName.trim()}>
               {editSaving ? 'Lagrar...' : 'Lagre namn'}
             </button>
-            <button className="btn btn-secondary" onClick={() => setEditBooking(null)}>Avbryt</button>
+            <button className="btn btn-secondary mb-2" onClick={() => setEditBooking(null)}>Avbryt</button>
+            <button className="w-full py-2.5 rounded-xl text-sm font-medium text-[var(--c-red)] border border-[var(--c-red)] mt-2" onClick={handleCancel}>
+              Kanseller booking
+            </button>
           </div>
         </div>
       )}
