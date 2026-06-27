@@ -35,7 +35,7 @@ export default function SettingsPage() {
   const [saved, setSaved]         = useState(false)
   const [email, setEmail]         = useState('')
   const [tasks, setTasks]         = useState<{id:string,name:string,est_minutes:number,is_active:boolean}[]>([])
-  const [newTask, setNewTask]     = useState({ name: '', est_minutes: 15 })
+  const [newTask, setNewTask]     = useState({ name: '' })
   const [showAddTask, setShowAddTask] = useState(false)
   const [syncing, setSyncing]     = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
@@ -123,11 +123,11 @@ export default function SettingsPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     const { data } = await supabase.from('turnover_tasks').insert({
-      name: newTask.name, est_minutes: newTask.est_minutes,
+      name: newTask.name, est_minutes: 15,
       sort_order: tasks.length + 1, is_active: true, user_id: session.user.id
     }).select().single()
     if (data) setTasks(prev => [...prev, data])
-    setNewTask({ name: '', est_minutes: 15 })
+    setNewTask({ name: '' })
     setShowAddTask(false)
   }
 
@@ -296,14 +296,10 @@ export default function SettingsPage() {
             <label className="block mb-3">
               <span className="field-label">Namn på oppgåva</span>
               <input type="text" className="field-input" value={newTask.name}
-                onChange={e => setNewTask(p => ({ ...p, name: e.target.value }))}
+                onChange={e => setNewTask({ name: e.target.value })}
                 placeholder="T.d. Lufte soverom" />
             </label>
-            <label className="block mb-4">
-              <span className="field-label">Estimert tid (minutt)</span>
-              <input type="number" className="field-input" min={1} value={newTask.est_minutes}
-                onChange={e => setNewTask(p => ({ ...p, est_minutes: +e.target.value }))} />
-            </label>
+
             <button className="btn btn-primary mb-2" onClick={addTask} disabled={!newTask.name}>Legg til</button>
             <button className="btn btn-secondary" onClick={() => setShowAddTask(false)}>Avbryt</button>
           </div>
