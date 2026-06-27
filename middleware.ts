@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/', '/login']
+// Sider som ikkje krev innlogging
+const PUBLIC_PATHS = ['/', '/login', '/landing']
 
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
+  // Alltid vis desse sidene utan å sjekke innlogging
   if (PUBLIC_PATHS.includes(path)) {
-    const res = NextResponse.next()
-    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
-    return res
+    return NextResponse.next()
   }
 
+  // Alt anna krev innlogging
   const token = req.cookies.get('sb-aqrmxxzznonivkevtctp-auth-token')
-
   if (!token) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
