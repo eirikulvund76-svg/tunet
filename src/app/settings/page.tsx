@@ -114,7 +114,6 @@ export default function SettingsPage() {
   }
 
   async function deleteTask(id: string) {
-    if (!confirm('Slett denne oppgåva?')) return
     await supabase.from('turnover_tasks').delete().eq('id', id)
     setTasks(prev => prev.filter(t => t.id !== id))
   }
@@ -272,7 +271,6 @@ export default function SettingsPage() {
             <span className={`flex-1 text-sm ${!task.is_active ? 'line-through text-[var(--c-muted)]' : ''}`}>
               {task.name}
             </span>
-            <span className="text-xs text-[var(--c-muted)]">{task.est_minutes} min</span>
             <button onClick={() => deleteTask(task.id)} className="text-[var(--c-muted)] text-lg leading-none">×</button>
           </div>
         ))}
