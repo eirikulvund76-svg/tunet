@@ -10,13 +10,6 @@ const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Helper — hent innlogga brukar sin ID
-async function uid(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) throw new Error('Ikkje innlogga')
-  return session.user.id
-}
-
 // ─── BOOKINGS ────────────────────────────────────────────────
 
 export async function getBookings(): Promise<Booking[]> {
@@ -56,10 +49,9 @@ export async function getBookingsForMonth(year: number, month: number): Promise<
 }
 
 export async function createBooking(booking: Omit<Booking, 'id'|'created_at'|'updated_at'>): Promise<Booking> {
-  const userId = await uid()
   const { data, error } = await supabase
     .from('bookings')
-    .insert({ ...booking, user_id: userId })
+    .insert(booking)
     .select()
     .single()
   if (error) throw error
@@ -79,11 +71,9 @@ export async function deleteBooking(id: string): Promise<void> {
 // ─── TURNOVER ────────────────────────────────────────────────
 
 export async function getTurnoverTasks(): Promise<TurnoverTask[]> {
-  const userId = await uid()
   const { data, error } = await supabase
     .from('turnover_tasks')
     .select('*')
-    .or(`user_id.eq.${userId},user_id.is.null`)
     .eq('is_active', true)
     .order('sort_order')
   if (error) throw error
@@ -91,9 +81,12 @@ export async function getTurnoverTasks(): Promise<TurnoverTask[]> {
 }
 
 export async function createTurnover(bookingId: string | null, date: string): Promise<Turnover> {
-  const userId = await uid()
+  // Hent brukar-id
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Ikkje innlogga')
+  const userId = session.user.id
 
-  // 1. Opprett turnover-rada
+  // 1) Create turnover session
   const { data: turnover, error: te } = await supabase
     .from('turnovers')
     .insert({ booking_id: bookingId, scheduled_date: date, user_id: userId })
@@ -101,22 +94,14 @@ export async function createTurnover(bookingId: string | null, date: string): Pr
     .single()
   if (te) throw te
 
-  // 2. Hent oppgåver
+  // 2) Create task log entries from all active tasks
   const tasks = await getTurnoverTasks()
-
-  if (tasks.length === 0) {
-    console.warn('Ingen oppgåver funne for brukar:', userId)
-    return turnover
-  }
-
-  // 3. Lag task-log-rader MED user_id (krev at RLS-policy tillèt insert)
   const taskLogs = tasks.map(t => ({
     turnover_id: turnover.id,
     task_id: t.id,
     completed: false,
-    user_id: userId   // ← VIKTIG: var mangla i original
+    user_id: userId
   }))
-
   const { error: le } = await supabase.from('turnover_task_log').insert(taskLogs)
   if (le) throw le
 
@@ -179,7 +164,7 @@ export async function getLowStockItems(): Promise<InventoryItem[]> {
   const { data, error } = await supabase
     .from('low_stock_items')
     .select('*')
-  if (error) return []
+  if (error) throw error
   return data ?? []
 }
 
@@ -189,6 +174,7 @@ export async function updateInventoryQty(
   reason: string,
   turnoverId?: string
 ): Promise<void> {
+  // Get current qty
   const { data: item, error: ge } = await supabase
     .from('inventory_items')
     .select('current_qty')
@@ -198,29 +184,20 @@ export async function updateInventoryQty(
 
   const delta = newQty - item.current_qty
 
+  // Update item
   const { error: ue } = await supabase
     .from('inventory_items')
     .update({ current_qty: newQty })
     .eq('id', itemId)
   if (ue) throw ue
 
+  // Log transaction
   await supabase.from('inventory_transactions').insert({
     item_id: itemId,
     delta,
     reason,
     turnover_id: turnoverId ?? null
   })
-}
-
-export async function createInventoryItem(item: Omit<InventoryItem, 'id'|'updated_at'>): Promise<InventoryItem> {
-  const userId = await uid()
-  const { data, error } = await supabase
-    .from('inventory_items')
-    .insert({ ...item, user_id: userId })
-    .select()
-    .single()
-  if (error) throw error
-  return data
 }
 
 // ─── DAMAGE REPORTS ──────────────────────────────────────────
@@ -236,10 +213,9 @@ export async function getDamageReports(status?: string): Promise<DamageReport[]>
 export async function createDamageReport(
   report: Omit<DamageReport, 'id'|'created_at'|'updated_at'>
 ): Promise<DamageReport> {
-  const userId = await uid()
   const { data, error } = await supabase
     .from('damage_reports')
-    .insert({ ...report, user_id: userId })
+    .insert(report)
     .select()
     .single()
   if (error) throw error
@@ -306,18 +282,17 @@ export async function getBookingPnl(): Promise<BookingPnl[]> {
 export async function createEconomyEntry(
   entry: Omit<EconomyEntry, 'id'|'created_at'>
 ): Promise<EconomyEntry> {
-  const userId = await uid()
   const { data, error } = await supabase
     .from('economy_entries')
-    .insert({ ...entry, user_id: userId })
+    .insert(entry)
     .select()
     .single()
   if (error) throw error
   return data
 }
 
+// Auto-create economy entries when a booking is confirmed
 export async function createBookingEconomyEntries(booking: Booking): Promise<void> {
-  const userId = await uid()
   const nights = Math.ceil(
     (new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime())
     / (1000 * 60 * 60 * 24)
@@ -329,8 +304,7 @@ export async function createBookingEconomyEntries(booking: Booking): Promise<voi
       category: 'booking_revenue',
       amount: nights * booking.price_per_night,
       description: `${booking.guest_name} · ${nights} netter`,
-      date: booking.check_in,
-      user_id: userId
+      date: booking.check_in
     },
     {
       booking_id: booking.id,
@@ -338,8 +312,7 @@ export async function createBookingEconomyEntries(booking: Booking): Promise<voi
       category: 'cleaning_fee',
       amount: booking.cleaning_fee,
       description: `Vaskegebyr — ${booking.guest_name}`,
-      date: booking.check_in,
-      user_id: userId
+      date: booking.check_in
     }
   ])
 }
