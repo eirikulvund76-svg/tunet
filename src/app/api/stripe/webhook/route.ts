@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   )
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.CheckoutSession
+    const session = event.data.object as Stripe.Checkout.Session
     const userId = session.metadata?.userId
     const subscriptionId = session.subscription as string
 
@@ -38,13 +38,10 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object as Stripe.Subscription
-    const userId = subscription.metadata?.userId
 
-    if (userId) {
-      await supabase.from('user_profiles').update({
-        subscription_status: subscription.status,
-      }).eq('stripe_subscription_id', subscription.id)
-    }
+    await supabase.from('user_profiles').update({
+      subscription_status: subscription.status,
+    }).eq('stripe_subscription_id', subscription.id)
   }
 
   return NextResponse.json({ received: true })
