@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-export default function AbonnementPage() {
+function AbonnementContent() {
   const router = useRouter()
   const params = useSearchParams()
   const avbrutt = params.get('avbrutt')
@@ -86,5 +86,13 @@ export default function AbonnementPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function AbonnementPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="display text-2xl text-[var(--c-muted)]">Verten</div></div>}>
+      <AbonnementContent />
+    </Suspense>
   )
 }
