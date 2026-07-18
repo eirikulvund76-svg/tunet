@@ -1,26 +1,22 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useState } from 'react'
 
 function AbonnementContent() {
   const router = useRouter()
   const params = useSearchParams()
   const avbrutt = params.get('avbrutt')
   const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.push('/login'); return }
-      setEmail(session.user.email ?? '')
-    })
-  }, [])
 
   async function handleCheckout() {
     setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
+    if (!session) {
+      router.push('/login')
+      return
+    }
 
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
@@ -80,10 +76,6 @@ function AbonnementContent() {
             Ingen kredittkort nødvendig i prøveperioden
           </p>
         </div>
-
-        <p className="text-center text-xs text-[var(--c-muted)]">
-          Innlogga som {email}
-        </p>
       </div>
     </div>
   )
@@ -91,7 +83,11 @@ function AbonnementContent() {
 
 export default function AbonnementPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="display text-2xl text-[var(--c-muted)]">Verten</div></div>}>
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="display text-2xl text-[var(--c-muted)]">Verten</div>
+      </div>
+    }>
       <AbonnementContent />
     </Suspense>
   )
