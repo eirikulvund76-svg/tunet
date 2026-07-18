@@ -4,10 +4,10 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 const DEFAULT_TASKS = [
-  { name: 'Bytte sengetøy', sort_order: 1 },
+  { name: 'Bytte sengetÃ¸y', sort_order: 1 },
   { name: 'Vaske bad', sort_order: 2 },
-  { name: 'Vaske kjøkken', sort_order: 3 },
-  { name: 'Støvsuge alle rom', sort_order: 4 },
+  { name: 'Vaske kjÃ¸kken', sort_order: 3 },
+  { name: 'StÃ¸vsuge alle rom', sort_order: 4 },
   { name: 'Vaske golv', sort_order: 5 },
   { name: 'Fylle forbruksvarer', sort_order: 6 },
   { name: 'Kontrollere TV og lys', sort_order: 7 },
@@ -21,17 +21,17 @@ const DEFAULT_INVENTORY = [
   { name: 'Toalettreingjer', category: 'cleaning',   unit: 'flaske', current_qty: 2,  min_qty: 1, max_qty: 5  },
   { name: 'Allreingjer',     category: 'cleaning',   unit: 'flaske', current_qty: 2,  min_qty: 1, max_qty: 5  },
   { name: 'Toalettpapir',    category: 'consumable', unit: 'rull',   current_qty: 12, min_qty: 4, max_qty: 24 },
-  { name: 'Tørkepapir',      category: 'consumable', unit: 'rull',   current_qty: 4,  min_qty: 2, max_qty: 8  },
-  { name: 'Søppelsekkar',    category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
+  { name: 'TÃ¸rkepapir',      category: 'consumable', unit: 'rull',   current_qty: 4,  min_qty: 2, max_qty: 8  },
+  { name: 'SÃ¸ppelsekkar',    category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
   { name: 'Oppvasktabs',     category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
-  { name: 'Såpe (hender)',   category: 'consumable', unit: 'flaske', current_qty: 3,  min_qty: 1, max_qty: 6  },
+  { name: 'SÃ¥pe (hender)',   category: 'consumable', unit: 'flaske', current_qty: 3,  min_qty: 1, max_qty: 6  },
   { name: 'Kaffe / te',      category: 'consumable', unit: 'pakke',  current_qty: 4,  min_qty: 1, max_qty: 8  },
   { name: 'Tennbrikkett',    category: 'consumable', unit: 'stk',    current_qty: 20, min_qty: 5, max_qty: 40 },
   { name: 'Handkle (liten)', category: 'textile',    unit: 'stk',    current_qty: 6,  min_qty: 2, max_qty: 12 },
   { name: 'Handkle (stor)',  category: 'textile',    unit: 'stk',    current_qty: 6,  min_qty: 2, max_qty: 12 },
   { name: 'Sengeskift',      category: 'textile',    unit: 'sett',   current_qty: 4,  min_qty: 2, max_qty: 8  },
   { name: 'Putevar',         category: 'textile',    unit: 'stk',    current_qty: 8,  min_qty: 4, max_qty: 16 },
-  { name: 'Lyspærer',        category: 'equipment',  unit: 'stk',    current_qty: 4,  min_qty: 2, max_qty: 10 },
+  { name: 'LyspÃ¦rer',        category: 'equipment',  unit: 'stk',    current_qty: 4,  min_qty: 2, max_qty: 10 },
   { name: 'Batterier (AA)',  category: 'equipment',  unit: 'stk',    current_qty: 8,  min_qty: 4, max_qty: 16 },
 ]
 
@@ -56,13 +56,13 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
 
-        // Supabase returnerer session direkte når email-bekreftelse er av
+        // Supabase returnerer session direkte nÃ¥r email-bekreftelse er av
         let uid = data.user?.id
-        if (!uid) throw new Error('Ingen brukar returnert frå registrering')
+        if (!uid) throw new Error('Ingen brukar returnert frÃ¥ registrering')
 
         setUserId(uid)
 
-        // Lag oppgåver og lagervarer
+        // Lag oppgÃ¥ver og lagervarer
         try {
           await supabase.from('turnover_tasks').insert(
             DEFAULT_TASKS.map(t => ({ ...t, user_id: uid, is_active: true }))
@@ -98,7 +98,7 @@ export default function LoginPage() {
       house_name: houseName,
       house_location: houseLocation,
     })
-    router.push('/dashboard')
+    router.push('/abonnement')
   }
 
   if (step === 'welcome') {
@@ -109,13 +109,13 @@ export default function LoginPage() {
         alignItems: 'center', justifyContent: 'center', padding: '24px'
       }}>
         <div style={{ width: '100%', maxWidth: '360px' }}>
-          <h1 className="display text-3xl text-center mb-2">Velkommen! 👋</h1>
+          <h1 className="display text-3xl text-center mb-2">Velkommen! ðŸ‘‹</h1>
           <p className="text-center text-sm text-[var(--c-muted)] mb-6">
             Fyll inn litt info om huset ditt
           </p>
           <div className="card">
             <label className="block mb-3">
-              <span className="field-label">Namn på huset</span>
+              <span className="field-label">Namn pÃ¥ huset</span>
               <input type="text" className="field-input" value={houseName}
                 onChange={e => setHouseName(e.target.value)}
                 placeholder="T.d. Tunet, Solbakken..." autoFocus />
@@ -128,7 +128,7 @@ export default function LoginPage() {
             </label>
             <button className="btn btn-primary" onClick={handleWelcomeSave}
               disabled={saving || !houseName}>
-              {saving ? 'Lagrar...' : 'Kom i gang →'}
+              {saving ? 'Lagrar...' : 'Kom i gang â†’'}
             </button>
           </div>
         </div>
