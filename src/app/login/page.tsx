@@ -37,16 +37,11 @@ const DEFAULT_INVENTORY = [
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail]         = useState('')
-  const [password, setPassword]   = useState('')
-  const [isSignUp, setIsSignUp]   = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState('')
-  const [step, setStep]           = useState<'auth' | 'welcome'>('auth')
-  const [userId, setUserId]       = useState('')
-  const [houseName, setHouseName] = useState('')
-  const [houseLocation, setHouseLocation] = useState('')
-  const [saving, setSaving]       = useState(false)
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
 
   async function handleSubmit() {
     setLoading(true)
@@ -59,8 +54,7 @@ export default function LoginPage() {
         const uid = data.user?.id
         if (!uid) throw new Error('Ingen brukar returnert frå registrering')
 
-        setUserId(uid)
-
+        // Lag standarddata
         try {
           await supabase.from('turnover_tasks').insert(
             DEFAULT_TASKS.map(t => ({ ...t, user_id: uid, is_active: true }))
@@ -72,9 +66,20 @@ export default function LoginPage() {
           )
         } catch {}
 
-        setStep('welcome')
+        // Send direkte til Stripe checkout
+        const res = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: uid, email }),
+        })
+        const checkoutData = await res.json()
+        if (checkoutData.url) {
+          window.location.href = checkoutData.url
+        } else {
+          throw new Error('Kunne ikkje starte betaling')
+        }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
         router.push('/dashboard')
       }
@@ -82,55 +87,8 @@ export default function LoginPage() {
       setError(e.message === 'Invalid login credentials'
         ? 'Feil e-post eller passord'
         : e.message)
-    } finally {
       setLoading(false)
     }
-  }
-
-  async function handleWelcomeSave() {
-    if (!houseName) return
-    setSaving(true)
-    await supabase.from('user_profiles').upsert({
-      id: userId,
-      house_name: houseName,
-      house_location: houseLocation,
-    })
-    router.push('/abonnement')
-  }
-
-  if (step === 'welcome') {
-    return (
-      <div style={{
-        minHeight: '100vh', background: 'var(--c-bg)',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: '24px'
-      }}>
-        <div style={{ width: '100%', maxWidth: '360px' }}>
-          <h1 className="display text-3xl text-center mb-2">Velkommen!</h1>
-          <p className="text-center text-sm text-[var(--c-muted)] mb-6">
-            Fyll inn litt info om huset ditt
-          </p>
-          <div className="card">
-            <label className="block mb-3">
-              <span className="field-label">Namn på huset</span>
-              <input type="text" className="field-input" value={houseName}
-                onChange={e => setHouseName(e.target.value)}
-                placeholder="T.d. Tunet, Solbakken..." autoFocus />
-            </label>
-            <label className="block mb-4">
-              <span className="field-label">Stad / adresse</span>
-              <input type="text" className="field-input" value={houseLocation}
-                onChange={e => setHouseLocation(e.target.value)}
-                placeholder="T.d. Voss, Vestland" />
-            </label>
-            <button className="btn btn-primary" onClick={handleWelcomeSave}
-              disabled={saving || !houseName}>
-              {saving ? 'Lagrar...' : 'Kom i gang'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -141,13 +99,19 @@ export default function LoginPage() {
     }}>
       <div style={{ width: '100%', maxWidth: '360px' }}>
         <h1 className="display text-4xl text-center mb-2">Verten</h1>
-        <p className="text-center text-sm text-[var(--c-muted)] mb-8">
+        <p className="text-center text-sm mb-8" style={{ color: 'var(--c-muted)' }}>
           Driftsystem for Airbnb-vertar
         </p>
         <div className="card">
           <h2 className="display text-xl mb-4">
             {isSignUp ? 'Lag konto' : 'Logg inn'}
           </h2>
+          {isSignUp && (
+            <div className="mb-4 p-3 rounded-xl text-xs"
+              style={{ background: 'var(--c-accent-lt)', color: 'var(--c-accent)' }}>
+              Etter registrering vert du sendt til betaling. 30 dagar gratis, ingen kredittkort nødvendig.
+            </div>
+          )}
           {error && (
             <div className="mb-3 p-3 rounded-lg text-sm"
               style={{ background: 'var(--c-red-lt)', color: 'var(--c-red)' }}>
@@ -167,7 +131,9 @@ export default function LoginPage() {
               onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
           </label>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Ventar...' : isSignUp ? 'Lag konto' : 'Logg inn'}
+            {loading
+              ? (isSignUp ? 'Oppretter konto...' : 'Loggar inn...')
+              : (isSignUp ? 'Lag konto og betal' : 'Logg inn')}
           </button>
           <button className="btn btn-secondary mt-2"
             onClick={() => { setIsSignUp(!isSignUp); setError('') }}>
