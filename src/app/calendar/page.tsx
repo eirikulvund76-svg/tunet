@@ -1,7 +1,7 @@
 'use client'
 // src/app/calendar/page.tsx
 import { useState, useEffect, useCallback } from 'react'
-import { getBookingsForMonth, createBooking, createBookingEconomyEntries, supabase } from '@/lib/supabase'
+import { getBookingsForMonth, createBooking, createBookingEconomyEntries } from '@/lib/supabase'
 import type { Booking } from '@/types/database'
 
 const MONTHS = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember']
@@ -22,9 +22,6 @@ export default function CalendarPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editBooking, setEditBooking] = useState<Booking | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editSaving, setEditSaving] = useState(false)
   const [form, setForm] = useState({
     guest_name: '', check_in: '', check_out: '',
     num_guests: 2, price_per_night: 900, cleaning_fee: 400, notes: ''
@@ -79,23 +76,6 @@ export default function CalendarPage() {
   }
 
   function f(k: string, v: string | number) { setForm(p => ({ ...p, [k]: v })) }
-
-  async function handleEditSave() {
-    if (!editBooking || !editName.trim()) return
-    setEditSaving(true)
-    await supabase.from('bookings').update({ guest_name: editName }).eq('id', editBooking.id)
-    setEditBooking(null)
-    load()
-    setEditSaving(false)
-  }
-
-  async function handleCancel() {
-    if (!editBooking) return
-    if (!confirm('Er du sikker på at du vil kansellere denne bookinga?')) return
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', editBooking.id)
-    setEditBooking(null)
-    load()
-  }
 
   return (
     <div className="p-4">
@@ -153,14 +133,14 @@ export default function CalendarPage() {
       ) : (
         <div className="card">
           {bookings.map((b, i) => (
-            <div key={b.id} onClick={() => { setEditBooking(b); setEditName(b.guest_name) }} className={`flex justify-between items-center py-2.5 cursor-pointer active:opacity-70 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
+            <div key={b.id} className={`flex justify-between items-center py-2.5 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
               <div>
                 <div className="font-medium text-sm">{b.guest_name}</div>
                 <div className="text-xs text-[var(--c-muted)]">
                   {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
                   {' – '}
                   {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                  {' · '}{nightsCount(b)} netter · {b.num_guests} gjester
+                  {' · '}{nightsCount(b)} netter
                 </div>
               </div>
               <div className="text-right">
@@ -232,32 +212,6 @@ export default function CalendarPage() {
               {saving ? 'Lagrar...' : 'Lagre booking'}
             </button>
             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Avbryt</button>
-          </div>
-        </div>
-      )}
-
-      {/* Rediger namn modal */}
-      {editBooking && (
-        <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setEditBooking(null)}>
-          <div className="modal-sheet">
-            <div className="modal-handle" />
-            <h2 className="display text-xl mb-1">Rediger booking</h2>
-            <p className="text-xs text-[var(--c-muted)] mb-4">
-              {new Date(editBooking.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-              {' – '}
-              {new Date(editBooking.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-            </p>
-            <label className="block mb-4">
-              <span className="field-label">Gjestens namn</span>
-              <input className="field-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Familie Hansen" autoFocus />
-            </label>
-            <button className="btn btn-primary mb-2" onClick={handleEditSave} disabled={editSaving || !editName.trim()}>
-              {editSaving ? 'Lagrar...' : 'Lagre namn'}
-            </button>
-            <button className="btn btn-secondary mb-2" onClick={() => setEditBooking(null)}>Avbryt</button>
-            <button className="w-full py-2.5 rounded-xl text-sm font-medium text-[var(--c-red)] border border-[var(--c-red)] mt-2" onClick={handleCancel}>
-              Kanseller booking
-            </button>
           </div>
         </div>
       )}

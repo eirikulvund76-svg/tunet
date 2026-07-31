@@ -154,7 +154,7 @@ export default function TurnoverPage() {
 
       {!turnover && (
         <button className="btn btn-secondary mb-3" onClick={startTurnover}>
-          ▶ Start turnover-sesjon (lagrar til Supabase)
+          ▶ Start turnover-sesjon
         </button>
       )}
 
