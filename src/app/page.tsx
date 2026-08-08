@@ -19,6 +19,8 @@ export default function LandingPage() {
           padding: 16px 24px; background: rgba(250,248,244,0.95);
           backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
         }
+        .nav-links { display: flex; align-items: center; gap: 20px; }
+        .nav-link { font-size: 13px; color: var(--muted); text-decoration: none; }
         .nav-cta {
           background: var(--green); color: #fff; border: none; border-radius: 10px;
           padding: 10px 22px; font-size: 14px; font-weight: 600; text-decoration: none;
@@ -55,10 +57,7 @@ export default function LandingPage() {
         .mockup-bar-title { font-family: 'Playfair Display', serif; font-size: 18px; }
         .mockup-bar-sub { font-size: 11px; opacity: 0.7; margin-top: 2px; }
         .mockup-body { padding: 14px; }
-        .mockup-card {
-          background: var(--cream); border-radius: 10px;
-          padding: 12px 14px; margin-bottom: 10px; border: 1px solid var(--border);
-        }
+        .mockup-card { background: var(--cream); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; border: 1px solid var(--border); }
         .mockup-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px; }
         .mockup-val { font-size: 20px; font-weight: 700; color: var(--green); }
         .mockup-sub { font-size: 11px; color: var(--muted); }
@@ -70,15 +69,8 @@ export default function LandingPage() {
         .section-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--green); margin-bottom: 10px; }
         h2 { font-family: 'Playfair Display', serif; font-size: clamp(26px, 5vw, 36px); line-height: 1.2; margin-bottom: 36px; }
         .feature-list { display: flex; flex-direction: column; gap: 16px; }
-        .feature {
-          display: flex; gap: 16px; align-items: flex-start;
-          padding: 20px; background: #fff; border-radius: 16px; border: 1px solid var(--border);
-        }
-        .feature-icon {
-          width: 44px; height: 44px; border-radius: 12px;
-          background: var(--green-lt); display: flex; align-items: center;
-          justify-content: center; font-size: 20px; flex-shrink: 0;
-        }
+        .feature { display: flex; gap: 16px; align-items: flex-start; padding: 20px; background: #fff; border-radius: 16px; border: 1px solid var(--border); }
+        .feature-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--green-lt); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
         .feature-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
         .feature-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
         .pricing { padding: 64px 24px; max-width: 400px; margin: 0 auto; text-align: center; }
@@ -92,13 +84,21 @@ export default function LandingPage() {
         .price-feature { display: flex; align-items: center; gap: 10px; font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
         .price-feature:last-child { border-bottom: none; }
         .check { color: var(--green); }
-        footer { padding: 32px 24px; text-align: center; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
-        footer a { color: var(--green); text-decoration: none; }
+        footer { padding: 40px 24px 32px; border-top: 1px solid var(--border); }
+        .footer-inner { max-width: 600px; margin: 0 auto; }
+        .footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
+        .footer-link { font-size: 13px; color: var(--muted); text-decoration: none; }
+        .footer-link:hover { color: var(--green); }
+        .footer-copy { font-size: 12px; color: var(--muted); }
       `}</style>
 
       <nav>
         <div className="logo">Verten</div>
-        <Link href="/login" className="nav-cta">Kom i gang</Link>
+        <div className="nav-links">
+          <Link href="#pris" className="nav-link">Pris</Link>
+          <Link href="/kontakt" className="nav-link">Kontakt</Link>
+          <Link href="/login" className="nav-cta">Kom i gang</Link>
+        </div>
       </nav>
 
       <section className="hero">
@@ -106,7 +106,7 @@ export default function LandingPage() {
         <h1>Drift huset ditt <em>utan</em> rotet</h1>
         <p className="hero-sub">Verten samlar kalender, turnover, lager og økonomi på éin stad — synkronisert automatisk med Airbnb.</p>
         <Link href="/login" className="btn-primary">Start 30 dagar gratis</Link>
-        <p className="hero-note">Ingen kredittkort nødvendig</p>
+        <p className="hero-note">Ingen kredittkort nødvendig · Ingen binding</p>
 
         <div className="mockup">
           <div className="mockup-bar">
@@ -177,8 +177,16 @@ export default function LandingPage() {
       </section>
 
       <footer>
-        <p style={{marginBottom:8}}>© 2026 Verten · Laga for norske Airbnb-vertar</p>
-        <p><Link href="/login" style={{color:'var(--green)'}}>Logg inn</Link></p>
+        <div className="footer-inner">
+          <div className="footer-links">
+            <Link href="/personvern" className="footer-link">Personvern</Link>
+            <Link href="/vilkaar" className="footer-link">Brukarvilkår</Link>
+            <Link href="/cookies" className="footer-link">Cookies</Link>
+            <Link href="/kontakt" className="footer-link">Kontakt</Link>
+            <Link href="/login" className="footer-link">Logg inn</Link>
+          </div>
+          <p className="footer-copy">© 2026 Verten · Laga for norske Airbnb-vertar</p>
+        </div>
       </footer>
     </>
   )

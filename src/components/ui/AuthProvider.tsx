@@ -3,10 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-// Sider som alltid er opne
-const PUBLIC_PATHS = ['/', '/login', '/abonnement']
-
-// Sider som krev abonnement
+const PUBLIC_PATHS = ['/', '/login', '/abonnement', '/velkommen', '/kontakt', '/personvern', '/vilkaar', '/cookies', '/tilbakestill-passord']
 const PROTECTED_PATHS = ['/dashboard', '/calendar', '/turnover', '/inventory', '/economy', '/settings']
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -18,17 +15,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     async function check() {
       const { data: { session } } = await supabase.auth.getSession()
 
-      // Ikkje innlogga og prøver å nå beskytta side
       if (!session && !PUBLIC_PATHS.includes(pathname)) {
         router.replace('/login')
         return
       }
 
-      // Innlogga og prøver å nå beskytta side — sjekk abonnement
       if (session && PROTECTED_PATHS.some(p => pathname.startsWith(p))) {
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('subscription_status, trial_end')
+          .select('subscription_status')
           .eq('id', session.user.id)
           .single()
 
@@ -57,10 +52,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   if (checking && !PUBLIC_PATHS.includes(pathname)) return (
     <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      minHeight: '100vh', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
       background: 'var(--c-bg)'
     }}>
       <div className="display text-2xl text-[var(--c-muted)]">Verten</div>
