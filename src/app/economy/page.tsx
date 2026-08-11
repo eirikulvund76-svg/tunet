@@ -1,5 +1,4 @@
 'use client'
-// src/app/economy/page.tsx
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -16,7 +15,7 @@ const EXPENSE_CATS: Record<string,string> = {
 
 function fmt(n: number) { return n.toLocaleString('nb-NO') }
 function nights(ci: string, co: string) {
-  return Math.ceil((new Date(co).getTime() - new Date(ci).getTime()) / 86400000)
+  return Math.max(0, Math.ceil((new Date(co).getTime() - new Date(ci).getTime()) / 86400000))
 }
 
 type Booking = { id: string; guest_name: string; check_in: string; check_out: string; price_per_night: number; cleaning_fee: number; status: string }
@@ -26,44 +25,53 @@ export default function EconomyPage() {
   const now = new Date()
   const [year, setYear]   = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
-  const [tab, setTab]     = useState<'oversikt'|'utgifter'>('oversikt')
+  const [tab, setTab]     = useState<'bookingar'|'utgifter'>('bookingar')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [loading, setLoading]   = useState(true)
   const [showAdd, setShowAdd]   = useState(false)
   const [saving, setSaving]     = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [error, setError]       = useState('')
   const [form, setForm] = useState({ category: 'electricity', amount: '', description: '', date: '' })
 
   async function load() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    const uid = session.user.id
+    setLoading(true)
+    setError('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const uid = session.user.id
 
-    // Hent bookingar som overlapper med månaden
-    const from = `${year}-${String(month).padStart(2,'0')}-01`
-    const to   = `${year}-${String(month).padStart(2,'0')}-${new Date(year, month, 0).getDate()}`
+      const from = `${year}-${String(month).padStart(2,'0')}-01`
+      const to   = `${year}-${String(month).padStart(2,'0')}-${new Date(year, month, 0).getDate()}`
 
-    const { data: b } = await supabase
-      .from('bookings')
-      .select('id, guest_name, check_in, check_out, price_per_night, cleaning_fee, status')
-      .eq('user_id', uid)
-      .neq('status', 'cancelled')
-      .lte('check_in', to)
-      .gte('check_out', from)
-      .order('check_in')
+      const [bRes, eRes] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('id, guest_name, check_in, check_out, price_per_night, cleaning_fee, status')
+          .eq('user_id', uid)
+          .neq('status', 'cancelled')
+          .lte('check_in', to)
+          .gte('check_out', from)
+          .order('check_in'),
+        supabase
+          .from('economy_entries')
+          .select('id, category, amount, description, date')
+          .eq('user_id', uid)
+          .eq('type', 'expense')
+          .gte('date', from)
+          .lte('date', to)
+          .order('date'),
+      ])
 
-    // Hent utgifter frå economy_entries
-    const { data: e } = await supabase
-      .from('economy_entries')
-      .select('id, category, amount, description, date')
-      .eq('user_id', uid)
-      .eq('type', 'expense')
-      .gte('date', from)
-      .lte('date', to)
-      .order('date')
-
-    setBookings(b ?? [])
-    setExpenses(e ?? [])
+      setBookings(bRes.data ?? [])
+      setExpenses(eRes.data ?? [])
+    } catch {
+      setError('Kunne ikkje laste økonomidata. Prøv igjen.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [year, month])
@@ -76,30 +84,44 @@ export default function EconomyPage() {
   const netto         = totalInntekt - totalUtgifter
 
   async function handleAdd() {
-    if (!form.amount || !form.date) return
+    if (!form.amount || !form.date) {
+      setError('Fyll inn beløp og dato.')
+      return
+    }
     setSaving(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    await supabase.from('economy_entries').insert({
-      user_id: session.user.id,
-      type: 'expense',
-      category: form.category,
-      amount: +form.amount,
-      description: form.description || null,
-      date: form.date,
-      booking_id: null,
-    })
-    setSaving(false)
-    setShowAdd(false)
-    setForm({ category: 'electricity', amount: '', description: '', date: '' })
-    load()
+    setError('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      await supabase.from('economy_entries').insert({
+        user_id: session.user.id,
+        type: 'expense',
+        category: form.category,
+        amount: +form.amount,
+        description: form.description || null,
+        date: form.date,
+        booking_id: null,
+      })
+      setShowAdd(false)
+      setForm({ category: 'electricity', amount: '', description: '', date: '' })
+      load()
+    } catch {
+      setError('Kunne ikkje lagre utgift. Prøv igjen.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id: string) {
     setDeleting(id)
-    await supabase.from('economy_entries').delete().eq('id', id)
-    setDeleting(null)
-    load()
+    try {
+      await supabase.from('economy_entries').delete().eq('id', id)
+      load()
+    } catch {
+      setError('Kunne ikkje slette. Prøv igjen.')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   return (
@@ -117,93 +139,118 @@ export default function EconomyPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-3 p-3 rounded-xl text-sm" style={{ background: 'var(--c-red-lt)', color: 'var(--c-red)' }}>
+          {error}
+        </div>
+      )}
+
       {/* Summakort */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="card text-center py-3">
-          <div className="text-xs text-[var(--c-muted)] mb-1">Inntekt</div>
-          <div className="font-semibold text-[var(--c-accent)]">{fmt(totalInntekt)}</div>
-          <div className="text-xs text-[var(--c-muted)]">kr</div>
+      {loading ? (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[1,2,3].map(i => <div key={i} className="card animate-pulse h-16" />)}
         </div>
-        <div className="card text-center py-3">
-          <div className="text-xs text-[var(--c-muted)] mb-1">Utgifter</div>
-          <div className="font-semibold text-[var(--c-red)]">{fmt(totalUtgifter)}</div>
-          <div className="text-xs text-[var(--c-muted)]">kr</div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="card text-center py-3">
+            <div className="text-xs mb-1" style={{ color: 'var(--c-muted)' }}>Inntekt</div>
+            <div className="font-semibold" style={{ color: 'var(--c-accent)' }}>{fmt(totalInntekt)}</div>
+            <div className="text-xs" style={{ color: 'var(--c-muted)' }}>kr</div>
+          </div>
+          <div className="card text-center py-3">
+            <div className="text-xs mb-1" style={{ color: 'var(--c-muted)' }}>Utgifter</div>
+            <div className="font-semibold" style={{ color: 'var(--c-red)' }}>{fmt(totalUtgifter)}</div>
+            <div className="text-xs" style={{ color: 'var(--c-muted)' }}>kr</div>
+          </div>
+          <div className="card text-center py-3">
+            <div className="text-xs mb-1" style={{ color: 'var(--c-muted)' }}>Netto</div>
+            <div className="font-semibold" style={{ color: netto >= 0 ? 'var(--c-accent)' : 'var(--c-red)' }}>{fmt(netto)}</div>
+            <div className="text-xs" style={{ color: 'var(--c-muted)' }}>kr</div>
+          </div>
         </div>
-        <div className="card text-center py-3">
-          <div className="text-xs text-[var(--c-muted)] mb-1">Netto</div>
-          <div className={`font-semibold ${netto >= 0 ? 'text-[var(--c-accent)]' : 'text-[var(--c-red)]'}`}>{fmt(netto)}</div>
-          <div className="text-xs text-[var(--c-muted)]">kr</div>
-        </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
-        {(['oversikt','utgifter'] as const).map(t => (
+        {(['bookingar','utgifter'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors
               ${tab===t ? 'bg-[var(--c-accent)] text-white border-[var(--c-accent)]'
                         : 'bg-[var(--c-surface)] text-[var(--c-muted)] border-[var(--c-border)]'}`}>
-            {t === 'oversikt' ? 'Bookingar' : 'Utgifter'}
+            {t === 'bookingar' ? 'Bookingar' : 'Utgifter'}
           </button>
         ))}
       </div>
 
       {/* Bookingar */}
-      {tab === 'oversikt' && (
-        <>
-          {bookings.length === 0
-            ? <div className="card text-sm text-[var(--c-muted)]">Ingen bookingar denne månaden</div>
-            : <div className="card">
-                {bookings.map((b, i) => {
-                  const n = nights(b.check_in, b.check_out)
-                  const total = n * b.price_per_night + b.cleaning_fee
-                  return (
-                    <div key={b.id} className={`flex justify-between items-center py-3 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
-                      <div>
-                        <div className="font-medium text-sm">{b.guest_name || 'Airbnb-gjest'}</div>
-                        <div className="text-xs text-[var(--c-muted)] mt-0.5">
-                          {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                          {' – '}
-                          {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
-                          {' · '}{n} netter
-                        </div>
-                      </div>
-                      <div className="font-semibold text-sm text-[var(--c-accent)]">{fmt(total)} kr</div>
+      {tab === 'bookingar' && (
+        loading ? (
+          <div className="card animate-pulse h-40" />
+        ) : bookings.length === 0 ? (
+          <div className="card text-sm" style={{ color: 'var(--c-muted)' }}>
+            Ingen bookingar denne månaden
+          </div>
+        ) : (
+          <div className="card">
+            {bookings.map((b, i) => {
+              const n = nights(b.check_in, b.check_out)
+              const total = n * b.price_per_night + b.cleaning_fee
+              return (
+                <div key={b.id} className={`flex justify-between items-center py-3 ${i < bookings.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
+                  <div>
+                    <div className="font-medium text-sm">{b.guest_name || 'Airbnb-gjest'}</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--c-muted)' }}>
+                      {new Date(b.check_in).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
+                      {' – '}
+                      {new Date(b.check_out).toLocaleDateString('nb-NO',{day:'numeric',month:'short'})}
+                      {' · '}{n} netter
                     </div>
-                  )
-                })}
-                <div className="flex justify-between items-center pt-3 mt-1 border-t border-[var(--c-border)]">
-                  <span className="text-sm text-[var(--c-muted)]">Totalt denne månaden</span>
-                  <span className="font-semibold text-sm">{fmt(totalInntekt)} kr</span>
+                  </div>
+                  <div className="font-semibold text-sm" style={{ color: 'var(--c-accent)' }}>{fmt(total)} kr</div>
                 </div>
-              </div>
-          }
-        </>
+              )
+            })}
+            <div className="flex justify-between items-center pt-3 mt-1 border-t border-[var(--c-border)]">
+              <span className="text-sm" style={{ color: 'var(--c-muted)' }}>Totalt denne månaden</span>
+              <span className="font-semibold text-sm">{fmt(totalInntekt)} kr</span>
+            </div>
+          </div>
+        )
       )}
 
       {/* Utgifter */}
       {tab === 'utgifter' && (
         <>
-          {expenses.length === 0
-            ? <div className="card text-sm text-[var(--c-muted)] mb-3">Ingen utgifter denne månaden</div>
-            : <div className="card mb-3">
-                {expenses.map((e, i) => (
-                  <div key={e.id} className={`flex justify-between items-center py-2.5 ${i < expenses.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
-                    <div>
-                      <div className="font-medium text-sm">{EXPENSE_CATS[e.category] ?? e.category}</div>
-                      {e.description && <div className="text-xs text-[var(--c-muted)]">{e.description}</div>}
-                      <div className="text-xs text-[var(--c-muted)]">{new Date(e.date).toLocaleDateString('nb-NO')}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-[var(--c-red)] text-sm">{fmt(e.amount)} kr</span>
-                      <button onClick={() => handleDelete(e.id)} disabled={deleting===e.id}
-                        className="text-[var(--c-muted)] text-lg leading-none">×</button>
-                    </div>
+          {loading ? (
+            <div className="card animate-pulse h-40 mb-3" />
+          ) : expenses.length === 0 ? (
+            <div className="card text-sm mb-3" style={{ color: 'var(--c-muted)' }}>
+              Ingen utgifter denne månaden
+            </div>
+          ) : (
+            <div className="card mb-3">
+              {expenses.map((e, i) => (
+                <div key={e.id} className={`flex justify-between items-center py-2.5 ${i < expenses.length-1 ? 'border-b border-[var(--c-border)]' : ''}`}>
+                  <div>
+                    <div className="font-medium text-sm">{EXPENSE_CATS[e.category] ?? e.category}</div>
+                    {e.description && <div className="text-xs" style={{ color: 'var(--c-muted)' }}>{e.description}</div>}
+                    <div className="text-xs" style={{ color: 'var(--c-muted)' }}>{new Date(e.date).toLocaleDateString('nb-NO')}</div>
                   </div>
-                ))}
-              </div>
-          }
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Legg til utgift</button>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm" style={{ color: 'var(--c-red)' }}>{fmt(e.amount)} kr</span>
+                    <button
+                      onClick={() => handleDelete(e.id)}
+                      disabled={deleting === e.id}
+                      className="text-[var(--c-muted)] text-lg leading-none"
+                    >×</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="btn btn-primary" onClick={() => { setShowAdd(true); setError('') }}>
+            + Legg til utgift
+          </button>
         </>
       )}
 
@@ -213,6 +260,13 @@ export default function EconomyPage() {
           <div className="modal-sheet">
             <div className="modal-handle" />
             <h2 className="display text-xl mb-4">Ny utgift</h2>
+
+            {error && (
+              <div className="mb-3 p-3 rounded-lg text-sm" style={{ background: 'var(--c-red-lt)', color: 'var(--c-red)' }}>
+                {error}
+              </div>
+            )}
+
             <label className="block mb-3">
               <span className="field-label">Kategori</span>
               <select className="field-input" value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}>
