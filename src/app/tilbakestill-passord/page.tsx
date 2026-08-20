@@ -5,28 +5,20 @@ import { supabase } from '@/lib/supabase'
 
 function TilbakestillContent() {
   const router = useRouter()
-  const params = useSearchParams()
-  const [password, setPassword]     = useState('')
-  const [password2, setPassword2]   = useState('')
+  const [password, setPassword]         = useState('')
+  const [password2, setPassword2]       = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState('')
-  const [success, setSuccess]       = useState(false)
-  const [validSession, setValidSession] = useState(false)
-  const [checking, setChecking]     = useState(true)
+  const [loading, setLoading]           = useState(false)
+  const [error, setError]               = useState('')
+  const [success, setSuccess]           = useState(false)
+  const [checking, setChecking]         = useState(true)
 
   useEffect(() => {
-    // Supabase sender token i URL-hash — les den og set session
     supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setValidSession(true)
-      }
-      setChecking(false)
+      if (event === 'PASSWORD_RECOVERY') setChecking(false)
     })
-    // Trigger session-sjekk
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setValidSession(true)
-      setChecking(false)
+      if (session) setChecking(false)
     })
   }, [])
 
@@ -53,10 +45,13 @@ function TilbakestillContent() {
       setSuccess(true)
       setTimeout(() => router.push('/dashboard'), 2500)
     } catch (e: any) {
-      if (e.message?.includes('same password')) {
-        setError('Det nye passordet kan ikkje vere det same som det gamle.')
+      const msg = e.message ?? ''
+      if (msg.includes('same password') || msg.includes('different from the old password')) {
+        setError('Du kan ikkje byte til eit passord du har brukt før. Vel eit nytt passord.')
+      } else if (msg.includes('weak')) {
+        setError('Passordet er for enkelt. Prøv eit lengre eller meir variert passord.')
       } else {
-        setError('Noko gjekk gale. Prøv å be om ny tilbakestillingslenke.')
+        setError('Noko gjekk gale. Prøv å be om ei ny tilbakestillingslenke.')
       }
     } finally {
       setLoading(false)
@@ -80,7 +75,6 @@ function TilbakestillContent() {
         <p className="text-center text-sm mb-8" style={{ color: 'var(--c-muted)' }}>
           Tilbakestill passord
         </p>
-
         <div className="card">
           {success ? (
             <div style={{ textAlign: 'center', padding: '8px 0' }}>
@@ -93,13 +87,11 @@ function TilbakestillContent() {
           ) : (
             <>
               <h2 className="display text-xl mb-4">Nytt passord</h2>
-
               {error && (
                 <div className="mb-3 p-3 rounded-lg text-sm" style={{ background: 'var(--c-red-lt)', color: 'var(--c-red)' }}>
                   {error}
                 </div>
               )}
-
               <label className="block mb-3">
                 <span className="field-label">Nytt passord</span>
                 <div style={{ position: 'relative' }}>
@@ -127,7 +119,6 @@ function TilbakestillContent() {
                   </button>
                 </div>
               </label>
-
               <label className="block mb-5">
                 <span className="field-label">Gjenta passord</span>
                 <input
@@ -139,15 +130,10 @@ function TilbakestillContent() {
                   onKeyDown={e => e.key === 'Enter' && handleReset()}
                 />
               </label>
-
               <button className="btn btn-primary" onClick={handleReset} disabled={loading}>
                 {loading ? 'Oppdaterer...' : 'Lagre nytt passord'}
               </button>
-
-              <button
-                className="btn btn-secondary mt-2"
-                onClick={() => router.push('/login')}
-              >
+              <button className="btn btn-secondary mt-2" onClick={() => router.push('/login')}>
                 Avbryt
               </button>
             </>
